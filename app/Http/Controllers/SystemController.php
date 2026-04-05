@@ -2,35 +2,35 @@
 
 namespace App\Http\Controllers;
 
-use App\Exceptions\CogneeApiException;
-use App\Services\CogneeService;
+use App\Exceptions\SupermemoryApiException;
+use App\Services\SupermemoryService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class SystemController extends Controller
 {
     public function __construct(
-        private readonly CogneeService $cogneeService,
+        private readonly SupermemoryService $supermemoryService,
     ) {}
 
     public function health(): JsonResponse
     {
         try {
-            $health = $this->cogneeService->health();
+            $health = $this->supermemoryService->health();
 
             return response()->json([
                 'laravel' => 'ok',
-                'cognee' => [
+                'supermemory' => [
                     'reachable' => true,
                     'health' => $health,
                 ],
             ]);
-        } catch (CogneeApiException $exception) {
+        } catch (SupermemoryApiException $exception) {
             return response()->json([
                 'laravel' => 'ok',
-                'cognee' => [
+                'supermemory' => [
                     'reachable' => false,
-                    'error' => $exception->cogneeDetail,
+                    'error' => $exception->detail,
                 ],
             ], 503);
         }
@@ -39,9 +39,7 @@ class SystemController extends Controller
     public function connection(Request $request): JsonResponse
     {
         $user = $this->authenticatedUser($request);
-        $result = $this->withCogneeSession($user, $this->cogneeService, function (string $token) {
-            return $this->cogneeService->checkConnection($token);
-        });
+        $result = $this->supermemoryService->checkConnection($this->supermemoryContainerTag($user));
 
         return response()->json([
             'data' => $result,

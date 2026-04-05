@@ -2,89 +2,58 @@
 
 namespace Tests\Feature;
 
-use App\Exceptions\CogneeApiException;
+use App\Exceptions\SupermemoryApiException;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Tests\Concerns\MocksCogneeService;
+use Tests\Concerns\MocksSupermemoryService;
 use Tests\TestCase;
 
 class SystemControllerTest extends TestCase
 {
-    use MocksCogneeService;
+    use MocksSupermemoryService;
     use RefreshDatabase;
 
-    public function test_health_returns_cognee_status(): void
+    public function test_health_returns_supermemory_status(): void
     {
-        $mock = $this->mockCogneeService();
+        $mock = $this->mockSupermemoryService();
 
         $mock->expects($this->once())
             ->method('health')
-            ->willReturn(['status' => 'ok']);
+            ->willReturn(['documents' => []]);
 
         $this->getJson('/api/system/health')
             ->assertOk()
-            ->assertJsonPath('cognee.reachable', true)
-            ->assertJsonPath('cognee.health.status', 'ok');
+            ->assertJsonPath('supermemory.reachable', true);
     }
 
-    public function test_health_returns_service_unavailable_when_cognee_is_down(): void
+    public function test_health_returns_service_unavailable_when_supermemory_is_down(): void
     {
-        $mock = $this->mockCogneeService();
+        $mock = $this->mockSupermemoryService();
 
         $mock->expects($this->once())
             ->method('health')
-            ->willThrowException(new CogneeApiException(503, 'down', 'down'));
+            ->willThrowException(new SupermemoryApiException(503, 'down', 'down'));
 
         $this->getJson('/api/system/health')
             ->assertStatus(503)
-            ->assertJsonPath('cognee.reachable', false);
+            ->assertJsonPath('supermemory.reachable', false);
     }
 
-    public function test_connection_requires_authenticated_cognee_session(): void
+    public function test_connection_uses_authenticated_users_container_tag(): void
     {
-        $user = User::factory()->create(['cognee_token' => 'cognee-token']);
+        $user = User::factory()->create();
         $token = $user->createToken('flutter')->plainTextToken;
-        $mock = $this->mockCogneeService();
+        $mock = $this->mockSupermemoryService();
 
         $mock->expects($this->once())
             ->method('checkConnection')
-            ->with('cognee-token')
-            ->willReturn(['connected' => true]);
+            ->with('user-'.$user->id)
+            ->willReturn(['connected' => true, 'container_tag' => 'user-'.$user->id]);
 
         $this->withHeader('Authorization', "Bearer $token")
             ->getJson('/api/system/connection')
             ->assertOk()
-            ->assertJsonPath('data.connected', true);
-    }
-
-    public function test_connection_restores_expired_cognee_session_and_retries(): void
-    {
-        $user = User::factory()->create([
-            'cognee_token' => 'expired-token',
-            'cognee_password' => 'password123',
-        ]);
-        $token = $user->createToken('flutter')->plainTextToken;
-        $mock = $this->mockCogneeService();
-
-        $mock->expects($this->exactly(2))
-            ->method('checkConnection')
-            ->with($this->logicalOr('expired-token', 'restored-token'))
-            ->willReturnCallback(function (string $token) {
-                if ($token === 'expired-token') {
-                    throw CogneeApiException::sessionExpired();
-                }
-
-                return ['connected' => true];
-            });
-
-        $mock->expects($this->once())
-            ->method('restoreUserSession')
-            ->with($this->callback(fn (User $model) => $model->is($user)))
-            ->willReturn('restored-token');
-
-        $this->withHeader('Authorization', "Bearer $token")
-            ->getJson('/api/system/connection')
-            ->assertOk()
-            ->assertJsonPath('data.connected', true);
+            ->assertJsonPath('data.connected', true)
+            ->assertJsonPath('data.container_tag', 'user-'.$user->id);
     }
 }

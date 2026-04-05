@@ -2,7 +2,9 @@
 
 namespace App\Providers;
 
-use App\Services\CogneeService;
+use App\Services\FirestoreSyncService;
+use App\Services\GeminiService;
+use App\Services\SupermemoryService;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
@@ -15,7 +17,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        $this->app->singleton(CogneeService::class);
+        $this->app->singleton(FirestoreSyncService::class);
+        $this->app->singleton(GeminiService::class);
+        $this->app->singleton(SupermemoryService::class);
     }
 
     /**

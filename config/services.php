@@ -35,4 +35,20 @@ return [
         ],
     ],
 
+    'firebase' => [
+        'project_id' => env('FIREBASE_PROJECT_ID'),
+        'service_account_json' => env('FIREBASE_SERVICE_ACCOUNT_JSON'),
+        'service_account_path' => env('FIREBASE_SERVICE_ACCOUNT_PATH'),
+        'collection_root' => env('FIREBASE_INGESTIONS_COLLECTION', 'user_ingestions'),
+    ],
+
+    'gemini' => [
+        'api_key' => env('GEMINI_API_KEY'),
+        'model' => env('GEMINI_MODEL', 'gemini-2.5-flash'),
+        'base_url' => env('GEMINI_BASE_URL', 'https://generativelanguage.googleapis.com/v1beta'),
+        'timeout' => env('GEMINI_TIMEOUT', 30),
+        'temperature' => env('GEMINI_TEMPERATURE', 0.2),
+        'max_output_tokens' => env('GEMINI_MAX_OUTPUT_TOKENS', 1024),
+    ],
+
 ];

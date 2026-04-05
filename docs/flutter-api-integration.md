@@ -1,6 +1,6 @@
 # Flutter API Integration Guide
 
-This document explains how to connect the Flutter app to the Laravel API layer that proxies Cognee.
+This document explains how to connect the Flutter app to the Laravel API layer that now proxies Supermemory.
 
 ## Overview
 
@@ -9,9 +9,10 @@ The Flutter app should talk only to Laravel.
 Flow:
 
 1. Flutter authenticates with Laravel using Sanctum bearer tokens.
-2. Laravel stores and manages the internal Cognee session cookie.
-3. Flutter sends `Authorization: Bearer <token>` on protected requests.
-4. Laravel forwards the request to Cognee when needed and normalizes the response.
+2. Laravel talks to Supermemory using the server-side `SUPERMEMORY_API_KEY`.
+3. Every Supermemory request is scoped with a deterministic per-user tag: `user-<local_user_id>`.
+4. Laravel persists ingestion status rows in MySQL and mirrors them into Firestore at `user_ingestions/{userId}/items/{trackingId}`.
+5. Flutter never sends the Supermemory key and never manages upstream auth.
 
 Base URL example:
 
@@ -44,49 +45,6 @@ Response:
     "name": "user"
   },
   "token": "1|sanctum-token"
-
-  ## Memify
-
-  `POST /api/memify`
-
-  Use this endpoint to enrich an existing knowledge graph without re-uploading source files.
-
-  When to use it:
-
-  - add derived facts or enrichments to an already processed dataset
-  - run targeted enrichment against specific graph nodes
-  - experiment with custom extraction and enrichment tasks over existing graph data
-
-  Do not use it as the default replacement for uploading a new file. New source files should still go through ingestion and then cognify.
-
-  Request:
-
-  ```json
-  {
-    "dataset_name": "Docs",
-    "extraction_tasks": ["ExtractTopics"],
-    "enrichment_tasks": ["SummarizeCommunities"],
-    "node_name": ["Project Phoenix"],
-    "run_in_background": true
-  }
-  ```
-
-  Response:
-
-  ```json
-  {
-    "result": {
-      "pipeline_run_id": "run-2"
-    }
-  }
-  ```
-
-  Notes:
-
-  - send either `dataset_id` or `dataset_name`
-  - `data` is optional and lets you pass direct text into memify
-  - when `data` is omitted, Cognee can enrich the existing graph for that dataset
-  - for schema or ontology changes that require re-reading old source documents, prefer an explicit rebuild flow instead of memify
 }
 ```
 
@@ -120,13 +78,6 @@ Response:
 
 `GET /api/auth/me`
 
-Headers:
-
-```text
-Authorization: Bearer <token>
-Accept: application/json
-```
-
 Response:
 
 ```json
@@ -136,9 +87,9 @@ Response:
     "email": "user@example.com",
     "name": "user"
   },
-  "cognee": {
-    "id": "uuid",
-    "email": "user@example.com"
+  "supermemory": {
+    "configured": true,
+    "container_tag": "user-1"
   }
 }
 ```
@@ -155,211 +106,52 @@ Response:
 }
 ```
 
-## Session State
+## Memories
 
-### Check App + Cognee Session
+### Add Memory
 
-`GET /api/session/status`
-
-Use this endpoint when the app starts, returns from background, or receives a Cognee-related `401`.
-
-Response shape:
-
-```json
-{
-  "auth": {
-    "authenticated": true,
-    "user_id": 1
-  },
-  "cognee": {
-    "authenticated": true,
-    "status": "active",
-    "profile": {
-      "id": "uuid"
-    }
-  }
-}
-```
-
-Possible `cognee.status` values:
-
-- `active`
-- `expired`
-- `missing`
-- `requires_credentials`
-- `unavailable`
-
-Recommended Flutter handling:
-
-- `active`: continue normally
-- `expired`: retry the request once after calling `/api/session/status`; if it stays expired, call `/api/session/restore`
-- `missing`: treat as logged out from Cognee, usually re-login
-- `requires_credentials`: prompt for the user's password and call `/api/session/restore` without clearing the Sanctum token
-- `unavailable`: show retry / upstream unavailable state
-
-The response also includes `cognee.can_restore_automatically`:
-
-- `true`: Laravel already has a stored Cognee password and can recreate the Cognee session automatically
-- `false`: Flutter should prompt for the password and call `/api/session/restore`
-
-### Restore Cognee Session Without Logging Out of Sanctum
-
-`POST /api/session/restore`
-
-Use this when the Sanctum token is still valid but Cognee needs to be re-authenticated.
-
-Request when Laravel already has a stored Cognee password:
-
-```json
-{}
-```
-
-Request when this is an older account and Laravel does not yet have a stored Cognee password:
-
-```json
-{
-  "password": "secret123"
-}
-```
-
-Response:
-
-```json
-{
-  "message": "Cognee session restored",
-  "cognee": {
-    "authenticated": true,
-    "status": "active",
-    "can_restore_automatically": true,
-    "profile": {
-      "id": "uuid"
-    }
-  }
-}
-```
-
-## Datasets
-
-### List Datasets
-
-`GET /api/datasets`
-
-Response:
-
-```json
-{
-  "data": [
-    {
-      "id": "123e4567-e89b-12d3-a456-426614174000",
-      "name": "Docs"
-    }
-  ]
-}
-```
-
-### Create Dataset
-
-`POST /api/datasets`
+`POST /api/memories`
 
 Request:
 
 ```json
 {
-  "name": "Docs"
-}
-```
-
-Response:
-
-```json
-{
-  "data": {
-    "id": "123e4567-e89b-12d3-a456-426614174000",
-    "name": "Docs"
+  "text": "User summary of the uploaded contract",
+  "custom_id": "note-123",
+  "entity_context": "Personal notes about project Phoenix",
+  "metadata": {
+    "category": "notes",
+    "screen": "capture"
   }
 }
 ```
 
-### Get Processing Status
-
-`GET /api/datasets/status?dataset_ids[0]=123e4567-e89b-12d3-a456-426614174000`
-
 Response:
 
 ```json
 {
-  "data": {
-    "123e4567-e89b-12d3-a456-426614174000": {
-      "upstream": "DATASET_PROCESSING_STARTED",
-      "state": "processing"
+  "memory": {
+    "id": "mem_abc123",
+    "status": "processed",
+    "container_tag": "user-1",
+    "custom_id": "note-123",
+    "metadata": {
+      "category": "notes",
+      "screen": "capture",
+      "source": "memory",
+      "uploaded_by_user_id": 1
     }
   }
 }
 ```
 
-Mapped `state` values:
+Use this endpoint for user-written content, summaries, chat takeaways, and other extracted memory content.
 
-- `queued`
-- `processing`
-- `completed`
-- `failed`
-- `unknown`
+## Documents
 
-## Ingestion
+### Upload Documents
 
-You can ingest either plain text or files.
-
-Important rule:
-
-- send either `dataset_id`
-- or `dataset_name`
-- not neither
-
-If you send `dataset_name`, Laravel will create or resolve that dataset before calling Cognee.
-
-By default, Laravel also triggers `cognify` automatically after a successful ingestion request so the dataset starts processing immediately.
-
-### Ingest Text
-
-`POST /api/ingestion/text`
-
-Request:
-
-```json
-{
-  "text": "This is the document content",
-  "dataset_name": "Docs",
-  "node_set": ["team-a", "notes"],
-  "run_cognify": true,
-  "run_in_background": true
-}
-```
-
-Note: text ingestion no longer accepts a `filename` field.
-
-Response:
-
-```json
-{
-  "dataset": {
-    "id": "123e4567-e89b-12d3-a456-426614174000",
-    "name": "Docs"
-  },
-  "result": {
-    "status": "added"
-  },
-  "cognify": {
-    "triggered": true,
-    "result": {
-      "pipeline_run_id": "run-1"
-    }
-  }
-}
-```
-
-### Ingest Files
-
-`POST /api/ingestion/files`
+`POST /api/documents`
 
 Content type:
 
@@ -370,156 +162,87 @@ multipart/form-data
 Fields:
 
 - `files[]`: one or more files
-- `dataset_id` or `dataset_name`
-- optional `node_set[]`
-- optional `run_cognify` (defaults to `true`)
-- optional `run_in_background` (defaults to `true`)
-- optional `custom_prompt`
-- optional `ontology_key[]`
-
-File uploads are automatically converted to plain text and forwarded through the same text-based `addData` path.
-
-Response:
-
-```json
-{
-  "dataset": {
-    "id": "123e4567-e89b-12d3-a456-426614174000"
-  },
-  "result": {
-    "status": "added"
-  },
-  "cognify": {
-    "triggered": true,
-    "result": {
-      "pipeline_run_id": "run-2"
-    }
-  }
-}
-```
-
-If you need to upload data without starting processing immediately, send:
-
-```json
-{
-  "run_cognify": false
-}
-```
-
-In that case the response contains:
-
-```json
-{
-  "cognify": {
-    "triggered": false,
-    "reason": "disabled"
-  }
-}
-```
-
-## Cognify
-
-`POST /api/cognify`
-
-Request:
-
-```json
-{
-  "dataset_name": "Docs",
-  "run_in_background": true,
-  "custom_prompt": "Extract the important entities and relations",
-  "ontology_key": ["schema"]
-}
-```
+- optional `custom_id`
+- optional `entity_context`
+- optional `metadata[...]`
+- optional `summary`
+- optional `summary_custom_id`
+- optional `summary_entity_context`
+- optional `summary_metadata[...]`
 
 Response:
 
 ```json
 {
-  "dataset": {
-    "id": "123e4567-e89b-12d3-a456-426614174000",
-    "name": "Docs"
-  },
-  "result": {
-    "pipeline_run_id": "run-1"
-  }
-}
-```
-
-Recommended mobile flow:
-
-1. ingest text or files
-2. read `cognify.triggered`
-3. if true, poll `/api/datasets/status`
-4. if false, call `/api/cognify` manually when ready
-5. enable search when state becomes `completed`
-
-## Search
-
-### Execute Search
-
-`POST /api/search`
-
-Request:
-
-```json
-{
-  "query": "What is in the dataset?",
-  "dataset_name": "Docs",
-  "search_type": "GRAPH_COMPLETION",
-  "top_k": 10,
-  "only_context": false
-}
-```
-
-Allowed `search_type` values in this API layer:
-
-- `GRAPH_COMPLETION`
-- `CHUNKS`
-- `RAG_COMPLETION`
-
-Response:
-
-```json
-{
-  "results": [
+  "documents": [
     {
-      "search_result": "Answer text",
-      "dataset_id": "123e4567-e89b-12d3-a456-426614174000",
-      "dataset_name": "Docs"
+      "id": "doc_file_1",
+      "status": "queued",
+      "name": "contract.pdf",
+      "container_tag": "user-1",
+      "custom_id": "upload-1",
+      "metadata": {
+        "source": "file",
+        "original_name": "contract.pdf",
+        "mime_type": "application/pdf",
+        "uploaded_by_user_id": 1
+      }
     }
   ],
-  "meta": {
-    "search_type": "GRAPH_COMPLETION",
-    "top_k": 10
+  "summary_memory": {
+    "id": "mem_summary_1",
+    "status": "processed",
+    "container_tag": "user-1",
+    "custom_id": "upload-1-summary",
+    "metadata": {
+      "source": "document_summary",
+      "uploaded_by_user_id": 1,
+      "linked_document_id": "doc_file_1",
+      "original_name": "contract.pdf"
+    }
   }
 }
 ```
 
-If the dataset has uploaded data but has not been processed yet, this endpoint returns a normalized Laravel error instead of Cognee's raw `404`:
+Notes:
 
-```json
-{
-  "message": "Search requires cognify to be run first",
-  "detail": {
-    "code": "SEARCH_REQUIRES_COGNIFY",
-    "action": "run_cognify",
-    "dataset_name": "Docs",
-    "hint": "Dataset has data, but the knowledge graph is empty. Run cognify before searching."
-  }
-}
+- For multiple files, Laravel uploads each file separately to Supermemory.
+- If you send one `custom_id` with multiple files, Laravel appends `-1`, `-2`, and so on to keep them unique.
+- `summary` can only be used when uploading exactly one file.
+- When `summary` is present, Laravel uploads the file as a document first, then stores the summary as memory for faster memory-style retrieval later.
+- Supermemory processing is asynchronous, so use the returned document IDs for polling.
+- Laravel creates a user-related status record for every uploaded file and every created memory.
+
+### Status Tracking and Firestore Sync
+
+Laravel stores ingestion tracking rows in MySQL (`supermemory_ingestions`) linked to the authenticated user.
+
+Tracked fields include:
+
+- Supermemory id (`supermemory_id`) for each file/memory
+- Current status (`supermemory_status`)
+- Source type (`memory` or `document`)
+- Source name (uploaded filename for documents)
+
+Firestore mirror path:
+
+- `user_ingestions/{userId}/items/{trackingId}`
+
+Sync behavior:
+
+- Memory status is saved on create and treated as final.
+- Document status is refreshed every minute by Laravel scheduler (`supermemory:sync-statuses`).
+- On status changes, Laravel updates MySQL and upserts the Firestore item.
+
+Server cron requirement:
+
+```bash
+* * * * * cd /var/www/foobar.net1 && php artisan schedule:run >> /dev/null 2>&1
 ```
 
-Recommended Flutter handling:
+### List Documents
 
-1. show a message that processing is required
-2. call `/api/cognify` for that dataset
-3. poll `/api/datasets/status`
-4. retry search after the dataset reaches `completed`
-
-### Search History
-
-`GET /api/search/history`
+`GET /api/documents?page=1&limit=10&sort=createdAt&order=desc`
 
 Response:
 
@@ -527,12 +250,236 @@ Response:
 {
   "data": [
     {
-      "id": "history-1",
-      "text": "previous query"
+      "id": "doc_abc123",
+      "status": "done",
+      "title": "Meeting notes",
+      "type": "text",
+      "content": null,
+      "summary": null,
+      "custom_id": "note-123",
+      "metadata": {
+        "source": "text"
+      },
+      "container_tags": ["user-1"],
+      "created_at": "2026-04-02T10:00:00Z",
+      "updated_at": "2026-04-02T10:00:00Z"
+    }
+  ],
+  "meta": {
+    "page": 1,
+    "limit": 10,
+    "pagination": null
+  }
+}
+```
+
+### Get Document Status and Details
+
+`GET /api/documents/{id}`
+
+Use this to poll processing state after ingestion.
+
+Response:
+
+```json
+{
+  "document": {
+    "id": "doc_abc123",
+    "status": "processing",
+    "title": "Meeting notes",
+    "type": "text",
+    "content": "Raw content when available",
+    "summary": "Short summary when available",
+    "custom_id": "note-123",
+    "metadata": {
+      "source": "text"
+    },
+    "container_tags": ["user-1"],
+    "created_at": "2026-04-02T10:00:00Z",
+    "updated_at": "2026-04-02T10:05:00Z"
+  }
+}
+```
+
+Typical Supermemory statuses:
+
+- `queued`
+- `extracting`
+- `chunking`
+- `embedding`
+- `done`
+- `failed`
+
+Recommended mobile flow:
+
+1. If the user writes a summary or note directly, call `/api/memories`.
+2. If the user uploads a file, call `/api/documents`.
+3. If the file already has a user summary, send that summary in the same `/api/documents` request so Laravel also stores it as memory.
+4. Poll `/api/documents/{id}` until `status == "done"` or `status == "failed"`.
+5. Use memory search for summary-style recall and document search for source-grounded retrieval.
+
+## Search
+
+### Search Memories
+
+`POST /api/search/memories`
+
+Response body:
+
+- `results`: array of memory matches
+- `results[].id`: memory identifier
+- `results[].content`: memory text to show or reuse
+- `results[].score`: relevance score when available
+- `results[].metadata`: memory metadata object
+- `meta.search_mode`: always `memories`
+- `meta.upstream_search_mode`: currently `hybrid`
+- `meta.limit`: applied result limit
+- `meta.threshold`: applied threshold or `null`
+- `meta.rerank`: whether reranking was enabled
+- `meta.container_tag`: current user's server-side container tag
+- `meta.total`: number of returned results
+- `meta.timing`: upstream timing when available
+
+This endpoint ignores `conversationHistory` and behaves as a direct retrieval call.
+
+Request:
+
+```json
+{
+  "query": "What did I say the contract summary was?",
+  "limit": 5,
+  "threshold": 0.6,
+  "rerank": true
+}
+```
+
+Response:
+
+```json
+{
+  "results": [
+    {
+      "id": "mem_abc123",
+      "score": 0.91,
+      "content": "The contract renews automatically unless notice is given.",
+      "metadata": {
+        "source": "document_summary",
+        "linked_document_id": "doc_abc123"
+      }
+    }
+  ],
+  "meta": {
+    "search_mode": "memories",
+    "upstream_search_mode": "hybrid",
+    "limit": 5,
+    "threshold": 0.6,
+    "rerank": true,
+    "container_tag": "user-1",
+    "total": 1,
+    "timing": 87
+  }
+}
+```
+
+Notes:
+
+- Use this endpoint for summaries, user notes, extracted takeaways, and other memory-style recall.
+
+### Search Documents
+
+`POST /api/search/documents`
+
+Response body:
+
+- `answer`: final Gemini answer for the user
+- `meta.search_mode`: always `documents`
+- `meta.response_mode`: always `answer_only`
+- `meta.upstream_search_mode`: currently `hybrid`
+- `meta.limit`: applied result limit
+- `meta.threshold`: applied threshold or `null`
+- `meta.rerank`: whether reranking was enabled
+- `meta.container_tag`: current user's server-side container tag
+- `meta.model`: Gemini model used to produce the answer
+- `meta.context_items`: number of retrieval context segments sent to Gemini
+- `meta.conversation_history_items`: number of prior chat messages forwarded to Gemini
+- `meta.no_context`: `true` when no relevant retrieval context was found and a fallback answer was returned
+- `meta.timing`: upstream timing when available
+
+Request:
+
+```json
+{
+  "query": "What does the contract say about renewal?",
+  "limit": 5,
+  "threshold": 0.6,
+  "rerank": true,
+  "conversationHistory": [
+    {
+      "role": "user",
+      "content": "Which document are we discussing?"
+    },
+    {
+      "role": "assistant",
+      "content": "We are discussing the service agreement."
     }
   ]
 }
 ```
+
+Response:
+
+```json
+{
+  "answer": "The contract renews automatically unless either party sends notice before the renewal window.",
+  "meta": {
+    "search_mode": "documents",
+    "response_mode": "answer_only",
+    "upstream_search_mode": "hybrid",
+    "limit": 5,
+    "threshold": 0.6,
+    "rerank": true,
+    "container_tag": "user-1",
+    "model": "gemini-2.5-flash",
+    "context_items": 4,
+    "conversation_history_items": 2,
+    "no_context": false,
+    "timing": 87
+  }
+}
+```
+
+No-context response:
+
+```json
+{
+  "answer": "I could not find relevant information in your documents or memories yet. Please add more content and try again.",
+  "meta": {
+    "search_mode": "documents",
+    "response_mode": "answer_only",
+    "upstream_search_mode": "hybrid",
+    "limit": 5,
+    "threshold": null,
+    "rerank": false,
+    "container_tag": "user-1",
+    "model": "gemini-2.5-flash",
+    "context_items": 0,
+    "conversation_history_items": 0,
+    "no_context": true,
+    "timing": 12
+  }
+}
+```
+
+Notes:
+
+- Flutter should read `answer` as the final response for the user.
+- This endpoint uses hybrid retrieval context (documents plus memories) and then returns only the LLM answer.
+- Send the last few user and assistant messages in `conversationHistory` for follow-up questions.
+- Use only `user` and `assistant` roles in `conversationHistory`.
+- If no relevant context is found, Laravel returns a graceful fallback answer with `meta.no_context = true`.
+- Both search endpoints call Supermemory with `searchMode=hybrid`; Laravel filters and normalizes the response per endpoint.
+- Laravel search integration uses Supermemory `POST /v4/search` upstream.
+- Search is always scoped to the current user’s tag on the server.
 
 ## System Endpoints
 
@@ -540,28 +487,16 @@ Response:
 
 `GET /api/system/health`
 
-Response when Cognee is reachable:
+Response:
 
 ```json
 {
   "laravel": "ok",
-  "cognee": {
+  "supermemory": {
     "reachable": true,
     "health": {
-      "status": "ok"
+      "documents": []
     }
-  }
-}
-```
-
-Response when Cognee is unavailable:
-
-```json
-{
-  "laravel": "ok",
-  "cognee": {
-    "reachable": false,
-    "error": "down"
   }
 }
 ```
@@ -575,10 +510,25 @@ Response:
 ```json
 {
   "data": {
-    "connected": true
+    "connected": true,
+    "container_tag": "user-1",
+    "document_count": 3
   }
 }
 ```
+
+## Removed Endpoints
+
+These routes no longer exist and should be removed from Flutter:
+
+- `GET /api/session/status`
+- `POST /api/session/restore`
+- `GET /api/datasets`
+- `POST /api/datasets`
+- `GET /api/datasets/status`
+- `POST /api/cognify`
+- `POST /api/memify`
+- `GET /api/search/history`
 
 ## Recommended Flutter Client Structure
 
@@ -632,29 +582,25 @@ class AuthApi {
     return response.data as Map<String, dynamic>;
   }
 
-  Future<Map<String, dynamic>> sessionStatus() async {
-    final response = await client.dio.get('/session/status');
+  Future<Map<String, dynamic>> me() async {
+    final response = await client.dio.get('/auth/me');
     return response.data as Map<String, dynamic>;
   }
 }
 ```
 
-### Ingest Text Example
+### Add Memory Example
 
 ```dart
-Future<Map<String, dynamic>> ingestText({
+Future<Map<String, dynamic>> addMemory({
   required String text,
-  required String datasetName,
-  List<String> nodeSet = const [],
-  bool runCognify = true,
-  bool runInBackground = true,
+  String? customId,
+  String? entityContext,
 }) async {
-  final response = await client.dio.post('/ingestion/text', data: {
+  final response = await client.dio.post('/memories', data: {
     'text': text,
-    'dataset_name': datasetName,
-    'node_set': nodeSet,
-    'run_cognify': runCognify,
-    'run_in_background': runInBackground,
+    'custom_id': customId,
+    'entity_context': entityContext,
   });
 
   return response.data as Map<String, dynamic>;
@@ -668,10 +614,11 @@ import 'package:dio/dio.dart';
 
 Future<Map<String, dynamic>> uploadFiles({
   required List<String> paths,
-  String? datasetId,
-  String? datasetName,
-  bool runCognify = true,
-  bool runInBackground = true,
+  String? customId,
+  String? entityContext,
+  String? summary,
+  String? summaryCustomId,
+  String? summaryEntityContext,
 }) async {
   final formData = FormData();
 
@@ -684,59 +631,74 @@ Future<Map<String, dynamic>> uploadFiles({
     );
   }
 
-  if (datasetId != null) formData.fields.add(MapEntry('dataset_id', datasetId));
-  if (datasetName != null) formData.fields.add(MapEntry('dataset_name', datasetName));
-  formData.fields.add(MapEntry('run_cognify', runCognify.toString()));
-  formData.fields.add(MapEntry('run_in_background', runInBackground.toString()));
+  if (customId != null) {
+    formData.fields.add(MapEntry('custom_id', customId));
+  }
 
-  final response = await client.dio.post('/ingestion/files', data: formData);
+  if (entityContext != null) {
+    formData.fields.add(MapEntry('entity_context', entityContext));
+  }
+
+  if (summary != null) {
+    formData.fields.add(MapEntry('summary', summary));
+  }
+
+  if (summaryCustomId != null) {
+    formData.fields.add(MapEntry('summary_custom_id', summaryCustomId));
+  }
+
+  if (summaryEntityContext != null) {
+    formData.fields.add(MapEntry('summary_entity_context', summaryEntityContext));
+  }
+
+  final response = await client.dio.post('/documents', data: formData);
   return response.data as Map<String, dynamic>;
 }
 ```
 
-### Cognify Example
+### Poll Document Example
 
 ```dart
-Future<Map<String, dynamic>> cognify({
-  required String datasetName,
-  bool runInBackground = true,
-  String? customPrompt,
-}) async {
-  final response = await client.dio.post('/cognify', data: {
-    'dataset_name': datasetName,
-    'run_in_background': runInBackground,
-    'custom_prompt': customPrompt,
-  });
-
+Future<Map<String, dynamic>> document(String documentId) async {
+  final response = await client.dio.get('/documents/$documentId');
   return response.data as Map<String, dynamic>;
 }
 ```
 
-### Poll Status Example
+### Search Memories Example
 
 ```dart
-Future<Map<String, dynamic>> datasetStatus(String datasetId) async {
-  final response = await client.dio.get('/datasets/status', queryParameters: {
-    'dataset_ids': [datasetId],
-  });
-
-  return response.data as Map<String, dynamic>;
-}
-```
-
-### Search Example
-
-```dart
-Future<Map<String, dynamic>> search({
+Future<Map<String, dynamic>> searchMemories({
   required String query,
-  required String datasetName,
+  int limit = 5,
+  double? threshold,
+  bool rerank = false,
 }) async {
-  final response = await client.dio.post('/search', data: {
+  final response = await client.dio.post('/search/memories', data: {
     'query': query,
-    'dataset_name': datasetName,
-    'search_type': 'GRAPH_COMPLETION',
-    'top_k': 10,
-    'only_context': false,
+    'limit': limit,
+    'threshold': threshold,
+    'rerank': rerank,
+  });
+
+  return response.data as Map<String, dynamic>;
+}
+```
+
+### Search Documents Example
+
+```dart
+Future<Map<String, dynamic>> searchDocuments({
+  required String query,
+  int limit = 5,
+  double? threshold,
+  bool rerank = false,
+}) async {
+  final response = await client.dio.post('/search/documents', data: {
+    'query': query,
+    'limit': limit,
+    'threshold': threshold,
+    'rerank': rerank,
   });
 
   return response.data as Map<String, dynamic>;
@@ -745,64 +707,41 @@ Future<Map<String, dynamic>> search({
 
 ## Error Handling
 
-The API returns Laravel validation errors as `422`.
+Validation errors still use Laravel `422` responses.
 
-Example:
+Upstream Supermemory errors use this normalized shape:
 
 ```json
 {
-  "message": "The given data was invalid.",
-  "errors": {
-    "dataset_name": [
-      "The dataset name field is required when dataset id is not present."
-    ]
-  }
+  "message": "Supermemory API error",
+  "detail": "upstream message or JSON payload"
 }
 ```
 
-Cognee-proxy errors use this shape:
+If the backend is not configured with `SUPERMEMORY_API_KEY`, the API returns:
 
 ```json
 {
-  "message": "Cognee session expired",
-  "detail": "COGNEE_SESSION_EXPIRED"
-}
-```
-
-When Laravel cannot auto-restore the Cognee session yet, the error becomes:
-
-```json
-{
-  "message": "Cognee session could not be restored automatically",
+  "message": "Supermemory API is not configured",
   "detail": {
-    "code": "COGNEE_SESSION_RECOVERY_UNAVAILABLE",
-    "action": "session_restore",
-    "hint": "Call /api/session/restore while the Sanctum session is still valid."
+    "code": "SUPERMEMORY_NOT_CONFIGURED",
+    "hint": "Set SUPERMEMORY_API_KEY in the environment before using this endpoint."
   }
 }
 ```
 
 Recommended Flutter behavior:
 
-- on `401` with `detail = COGNEE_SESSION_EXPIRED`: call `/api/session/status`; if status is `requires_credentials`, prompt for password and call `/api/session/restore`; otherwise retry once or send user to login
-- on `401` with `detail.code = COGNEE_SESSION_RECOVERY_UNAVAILABLE`: prompt for password and call `/api/session/restore` without clearing the Sanctum token
-- on `409` with `detail.code = SEARCH_REQUIRES_COGNIFY`: trigger cognify flow instead of showing a generic error
-- on `422`: show field errors in the current form
-- on `503`: show temporary service-unavailable state
+- on `401`: send the user to login
+- on `404` for `/api/documents/{id}`: treat the document as unavailable or not owned by the current user
+- on `422`: show form validation errors
+- on `503`: show a temporary service-unavailable state
 
-## Suggested Integration Order
+## Migration Checklist For Flutter
 
-1. implement login and token persistence
-2. call `/api/session/status` on app startup
-3. add dataset list/create flow
-4. add text ingestion
-5. add cognify trigger + status polling
-6. add search
-7. add file upload and search history
-
-## Notes
-
-- All protected endpoints require the Laravel Sanctum bearer token.
-- Flutter should never send or manage the Cognee cookie directly.
-- For ingestion and search, prefer `dataset_id` when you already have it.
-- For first-time flows, `dataset_name` is simpler because Laravel can create the dataset.
+1. Remove every screen, repository, and DTO tied to datasets, cognify, memify, session status, and session restore.
+2. Replace dataset polling with document polling via `/api/documents/{id}`.
+3. Send user-generated summaries and notes to `/api/memories`, not `/api/documents`.
+4. Send uploaded files to `/api/documents`, and include `summary` in that same request when you want Laravel to also save the summary as memory.
+5. Replace the old generic `/api/search` call with `/api/search/memories` or `/api/search/documents` depending on the UI flow.
+6. Update result parsing so memory search reads `results[i].content` as the memory text, while document search reads `answer` (and optionally `meta.no_context`) from the response.

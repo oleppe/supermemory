@@ -2,141 +2,192 @@
 
 namespace Tests\Feature;
 
-use App\Exceptions\CogneeApiException;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Tests\Concerns\MocksCogneeService;
+use Tests\Concerns\MocksGeminiService;
+use Tests\Concerns\MocksSupermemoryService;
 use Tests\TestCase;
 
 class SearchControllerTest extends TestCase
 {
-    use MocksCogneeService;
+    use MocksGeminiService;
+    use MocksSupermemoryService;
     use RefreshDatabase;
 
-    public function test_store_executes_search_with_defaults(): void
+    public function test_search_memories_executes_memory_search_with_defaults(): void
     {
-        $user = User::factory()->create(['cognee_token' => 'cognee-token']);
+        $user = User::factory()->create();
         $token = $user->createToken('flutter')->plainTextToken;
-        $mock = $this->mockCogneeService();
+        $mock = $this->mockSupermemoryService();
 
         $mock->expects($this->once())
-            ->method('search')
-            ->with('cognee-token', 'What is this?', null, 'Docs', 'GRAPH_COMPLETION', 10, false, null, [])
+            ->method('searchMemories')
+            ->with('What is this?', 'user-'.$user->id, 10, null, false)
             ->willReturn([
-                ['search_result' => 'Answer'],
+                'results' => [
+                    [
+                        'id' => 'mem-1',
+                        'memory' => 'Remembered answer',
+                        'score' => 0.92,
+                        'metadata' => ['source' => 'memory'],
+                    ],
+                ],
+                'total' => 1,
+                'timing' => 87,
             ]);
 
         $this->withHeader('Authorization', "Bearer $token")
-            ->postJson('/api/search', [
+            ->postJson('/api/search/memories', [
                 'query' => 'What is this?',
-                'dataset_name' => 'Docs',
             ])
             ->assertOk()
-            ->assertJsonPath('results.0.search_result', 'Answer')
-            ->assertJsonPath('meta.search_type', 'GRAPH_COMPLETION');
+            ->assertJsonPath('results.0.id', 'mem-1')
+            ->assertJsonPath('results.0.content', 'Remembered answer')
+            ->assertJsonPath('meta.search_mode', 'memories')
+            ->assertJsonPath('meta.upstream_search_mode', 'hybrid')
+            ->assertJsonPath('meta.total', 1);
     }
 
-    public function test_history_returns_search_history(): void
+    public function test_search_documents_validates_threshold_range(): void
     {
-        $user = User::factory()->create(['cognee_token' => 'cognee-token']);
-        $token = $user->createToken('flutter')->plainTextToken;
-        $mock = $this->mockCogneeService();
-
-        $mock->expects($this->once())
-            ->method('getSearchHistory')
-            ->with('cognee-token')
-            ->willReturn([
-                ['id' => 'history-1', 'text' => 'previous query'],
-            ]);
-
-        $this->withHeader('Authorization', "Bearer $token")
-            ->getJson('/api/search/history')
-            ->assertOk()
-            ->assertJsonPath('data.0.text', 'previous query');
-    }
-
-    public function test_store_validates_search_type(): void
-    {
-        $user = User::factory()->create(['cognee_token' => 'cognee-token']);
+        $user = User::factory()->create();
         $token = $user->createToken('flutter')->plainTextToken;
 
         $this->withHeader('Authorization', "Bearer $token")
-            ->postJson('/api/search', [
+            ->postJson('/api/search/documents', [
                 'query' => 'What is this?',
-                'dataset_name' => 'Docs',
-                'search_type' => 'INVALID',
+                'threshold' => 1.5,
             ])
             ->assertStatus(422)
-            ->assertJsonValidationErrors(['search_type']);
+            ->assertJsonValidationErrors(['threshold']);
     }
 
-    public function test_store_returns_actionable_error_when_dataset_needs_cognify(): void
+    public function test_search_documents_passes_threshold_and_rerank_options(): void
     {
-        $user = User::factory()->create(['cognee_token' => 'cognee-token']);
+        $user = User::factory()->create();
         $token = $user->createToken('flutter')->plainTextToken;
-        $mock = $this->mockCogneeService();
+        $supermemory = $this->mockSupermemoryService();
+        $gemini = $this->mockGeminiService();
 
-        $mock->expects($this->once())
-            ->method('search')
-            ->willThrowException(new CogneeApiException(
-                statusCode: 404,
-                cogneeDetail: "Dataset 'Docs' has 1 data item(s) but the knowledge graph is empty. Please run cognify to process the data before searching.",
-                message: 'NoDataError',
-            ));
+        $supermemory->expects($this->once())
+            ->method('searchDocuments')
+            ->with('What is this?', 'user-'.$user->id, 5, 0.6, true)
+            ->willReturn([
+                'results' => [
+                    [
+                        'documentId' => 'doc-9',
+                        'title' => 'Contract',
+                        'type' => 'pdf',
+                        'content' => 'Renewal clause',
+                        'score' => 0.88,
+                        'metadata' => ['source' => 'file'],
+                        'chunks' => [],
+                    ],
+                    [
+                        'id' => 'mem_22',
+                        'memory' => 'A related note from memory.',
+                        'score' => 0.78,
+                    ],
+                ],
+                'timing' => 54,
+            ]);
 
-        $this->withHeader('Authorization', "Bearer $token")
-            ->postJson('/api/search', [
-                'query' => 'What is this?',
-                'dataset_name' => 'Docs',
-            ])
-            ->assertStatus(409)
-            ->assertJsonPath('message', 'Search requires cognify to be run first')
-            ->assertJsonPath('detail.code', 'SEARCH_REQUIRES_COGNIFY')
-            ->assertJsonPath('detail.action', 'run_cognify')
-            ->assertJsonPath('detail.dataset_name', 'Docs');
-    }
-
-    public function test_store_restores_expired_cognee_session_and_retries_search(): void
-    {
-        $user = User::factory()->create([
-            'cognee_token' => 'expired-token',
-            'cognee_password' => 'password123',
-        ]);
-        $token = $user->createToken('flutter')->plainTextToken;
-        $mock = $this->mockCogneeService();
-
-        $mock->expects($this->exactly(2))
-            ->method('search')
+        $gemini->expects($this->once())
+            ->method('generateAnswer')
             ->with(
-                $this->logicalOr('expired-token', 'restored-token'),
                 'What is this?',
-                null,
-                'Docs',
-                'GRAPH_COMPLETION',
-                10,
-                false,
-                null,
-                []
+                $this->callback(function (array $segments): bool {
+                    $joined = implode(' ', $segments);
+
+                    return str_contains($joined, 'Renewal clause')
+                        && str_contains($joined, 'A related note from memory');
+                }),
+                [
+                    ['role' => 'user', 'content' => 'What document are we discussing?'],
+                    ['role' => 'assistant', 'content' => 'We are discussing the contract.'],
+                ],
             )
-            ->willReturnCallback(function (string $token) {
-                if ($token === 'expired-token') {
-                    throw CogneeApiException::sessionExpired();
-                }
+            ->willReturn('The contract has a renewal clause and related note.');
 
-                return [['search_result' => 'Recovered answer']];
-            });
-
-        $mock->expects($this->once())
-            ->method('restoreUserSession')
-            ->with($this->callback(fn (User $model) => $model->is($user)))
-            ->willReturn('restored-token');
+        $gemini->expects($this->once())
+            ->method('model')
+            ->willReturn('gemini-2.5-flash');
 
         $this->withHeader('Authorization', "Bearer $token")
-            ->postJson('/api/search', [
+            ->postJson('/api/search/documents', [
                 'query' => 'What is this?',
-                'dataset_name' => 'Docs',
+                'limit' => 5,
+                'threshold' => 0.6,
+                'rerank' => true,
+                'conversationHistory' => [
+                    ['role' => 'user', 'content' => 'What document are we discussing?'],
+                    ['role' => 'assistant', 'content' => 'We are discussing the contract.'],
+                ],
             ])
             ->assertOk()
-            ->assertJsonPath('results.0.search_result', 'Recovered answer');
+            ->assertJsonPath('answer', 'The contract has a renewal clause and related note.')
+            ->assertJsonPath('meta.limit', 5)
+            ->assertJsonPath('meta.threshold', 0.6)
+            ->assertJsonPath('meta.rerank', true)
+            ->assertJsonPath('meta.search_mode', 'documents')
+            ->assertJsonPath('meta.response_mode', 'answer_only')
+            ->assertJsonPath('meta.upstream_search_mode', 'hybrid')
+            ->assertJsonPath('meta.model', 'gemini-2.5-flash')
+            ->assertJsonPath('meta.context_items', 2)
+            ->assertJsonPath('meta.conversation_history_items', 2)
+            ->assertJsonPath('meta.no_context', false)
+            ->assertJsonMissingPath('results');
+    }
+
+    public function test_search_documents_validates_conversation_history_shape(): void
+    {
+        $user = User::factory()->create();
+        $token = $user->createToken('flutter')->plainTextToken;
+
+        $this->withHeader('Authorization', "Bearer $token")
+            ->postJson('/api/search/documents', [
+                'query' => 'What is this?',
+                'conversationHistory' => [
+                    ['role' => 'system', 'content' => 'Invalid role'],
+                ],
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['conversationHistory.0.role']);
+    }
+
+    public function test_search_documents_returns_graceful_fallback_when_no_context_found(): void
+    {
+        $user = User::factory()->create();
+        $token = $user->createToken('flutter')->plainTextToken;
+        $supermemory = $this->mockSupermemoryService();
+        $gemini = $this->mockGeminiService();
+
+        $supermemory->expects($this->once())
+            ->method('searchDocuments')
+            ->with('What is this?', 'user-'.$user->id, 10, null, false)
+            ->willReturn([
+                'results' => [],
+                'timing' => 12,
+            ]);
+
+        $gemini->expects($this->never())
+            ->method('generateAnswer');
+
+        $gemini->expects($this->once())
+            ->method('model')
+            ->willReturn('gemini-2.5-flash');
+
+        $this->withHeader('Authorization', "Bearer $token")
+            ->postJson('/api/search/documents', [
+                'query' => 'What is this?',
+            ])
+            ->assertOk()
+            ->assertJsonPath('answer', 'I could not find relevant information in your documents or memories yet. Please add more content and try again.')
+            ->assertJsonPath('meta.search_mode', 'documents')
+            ->assertJsonPath('meta.response_mode', 'answer_only')
+            ->assertJsonPath('meta.no_context', true)
+            ->assertJsonPath('meta.context_items', 0)
+            ->assertJsonPath('meta.conversation_history_items', 0)
+            ->assertJsonMissingPath('results');
     }
 }

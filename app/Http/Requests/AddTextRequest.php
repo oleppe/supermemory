@@ -15,15 +15,9 @@ class AddTextRequest extends FormRequest
     {
         return [
             'text' => ['required', 'string'],
-            'dataset_id' => ['nullable', 'uuid', 'required_without:dataset_name'],
-            'dataset_name' => ['nullable', 'string', 'max:255', 'required_without:dataset_id'],
-            'node_set' => ['nullable', 'array'],
-            'node_set.*' => ['string', 'max:255'],
-            'run_cognify' => ['nullable', 'boolean'],
-            'run_in_background' => ['nullable', 'boolean'],
-            'custom_prompt' => ['nullable', 'string'],
-            'ontology_key' => ['nullable', 'array'],
-            'ontology_key.*' => ['string', 'max:255'],
+            'custom_id' => ['nullable', 'string', 'max:100'],
+            'entity_context' => ['nullable', 'string', 'max:1500'],
+            'metadata' => ['nullable', 'array'],
         ];
     }
 }

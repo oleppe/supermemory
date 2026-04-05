@@ -16,15 +16,13 @@ class AddFilesRequest extends FormRequest
         return [
             'files' => ['required', 'array', 'min:1'],
             'files.*' => ['file', 'max:51200'],
-            'dataset_id' => ['nullable', 'uuid', 'required_without:dataset_name'],
-            'dataset_name' => ['nullable', 'string', 'max:255', 'required_without:dataset_id'],
-            'node_set' => ['nullable', 'array'],
-            'node_set.*' => ['string', 'max:255'],
-            'run_cognify' => ['nullable', 'boolean'],
-            'run_in_background' => ['nullable', 'boolean'],
-            'custom_prompt' => ['nullable', 'string'],
-            'ontology_key' => ['nullable', 'array'],
-            'ontology_key.*' => ['string', 'max:255'],
+            'custom_id' => ['nullable', 'string', 'max:100'],
+            'entity_context' => ['nullable', 'string', 'max:1500'],
+            'metadata' => ['nullable', 'array'],
+            'summary' => ['nullable', 'string'],
+            'summary_custom_id' => ['nullable', 'string', 'max:100'],
+            'summary_entity_context' => ['nullable', 'string', 'max:1500'],
+            'summary_metadata' => ['nullable', 'array'],
         ];
     }
 }

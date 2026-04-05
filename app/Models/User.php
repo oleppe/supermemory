@@ -4,6 +4,7 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
@@ -22,8 +23,6 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
-        'cognee_token',
-        'cognee_password',
     ];
 
     /**
@@ -34,8 +33,6 @@ class User extends Authenticatable
     protected $hidden = [
         'password',
         'remember_token',
-        'cognee_token',
-        'cognee_password',
     ];
 
     /**
@@ -48,8 +45,11 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
-            'cognee_token' => 'encrypted',
-            'cognee_password' => 'encrypted',
         ];
+    }
+
+    public function supermemoryIngestions(): HasMany
+    {
+        return $this->hasMany(SupermemoryIngestion::class);
     }
 }
