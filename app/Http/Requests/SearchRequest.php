@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class SearchRequest extends FormRequest
 {
@@ -15,12 +16,14 @@ class SearchRequest extends FormRequest
     {
         return [
             'query' => ['required', 'string'],
-            'limit' => ['nullable', 'integer', 'min:1', 'max:50'],
-            'threshold' => ['nullable', 'numeric', 'min:0', 'max:1'],
-            'rerank' => ['nullable', 'boolean'],
-            'conversationHistory' => ['nullable', 'array', 'max:12'],
-            'conversationHistory.*.role' => ['required_with:conversationHistory', 'string', 'in:user,assistant'],
-            'conversationHistory.*.content' => ['required_with:conversationHistory', 'string', 'max:4000'],
+            'dataset_id' => ['nullable', 'uuid', 'required_without:dataset_name'],
+            'dataset_name' => ['nullable', 'string', 'max:255', 'required_without:dataset_id'],
+            'search_type' => ['nullable', Rule::in(['GRAPH_COMPLETION', 'CHUNKS', 'RAG_COMPLETION'])],
+            'top_k' => ['nullable', 'integer', 'min:1', 'max:50'],
+            'only_context' => ['nullable', 'boolean'],
+            'system_prompt' => ['nullable', 'string'],
+            'node_name' => ['nullable', 'array'],
+            'node_name.*' => ['string', 'max:255'],
         ];
     }
 }

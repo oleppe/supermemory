@@ -2,140 +2,196 @@
 
 namespace Tests\Feature;
 
-use App\Models\SupermemoryIngestion;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
-use Tests\Concerns\MocksSupermemoryService;
+use Tests\Concerns\MocksCogneeService;
 use Tests\TestCase;
+use App\Exceptions\CogneeApiException;
 
 class IngestionControllerTest extends TestCase
 {
-    use MocksSupermemoryService;
+    use MocksCogneeService;
     use RefreshDatabase;
 
-    public function test_store_memory_adds_memory_for_authenticated_user(): void
+    public function test_store_text_creates_dataset_and_adds_text(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->create(['cognee_token' => 'cognee-token']);
         $token = $user->createToken('flutter')->plainTextToken;
-        $mock = $this->mockSupermemoryService();
+        $mock = $this->mockCogneeService();
 
         $mock->expects($this->once())
-            ->method('addMemory')
+            ->method('createDataset')
+            ->with('cognee-token', 'Notes')
+            ->willReturn(['id' => 'dataset-1', 'name' => 'Notes']);
+
+        $mock->expects($this->once())
+            ->method('addData')
             ->with(
-                'Hello Supermemory',
-                'user-'.$user->id,
-                $this->callback(function (array $metadata) use ($user) {
-                    return $metadata['source'] === 'memory'
-                        && $metadata['uploaded_by_user_id'] === $user->id;
-                }),
+                'cognee-token',
+                'Hello Cognee',
+                'dataset-1',
+                'Notes',
+                [],
                 null,
             )
-            ->willReturn(['id' => 'mem-1', 'status' => 'processed']);
+            ->willReturn(['status' => 'added']);
+
+        $mock->expects($this->once())
+            ->method('cognify')
+            ->with('cognee-token', 'dataset-1', 'Notes', true, null, [])
+            ->willReturn(['pipeline_run_id' => 'run-1']);
 
         $this->withHeader('Authorization', "Bearer $token")
-            ->postJson('/api/memories', [
-                'text' => 'Hello Supermemory',
+            ->postJson('/api/ingestion/text', [
+                'text' => 'Hello Cognee',
+                'dataset_name' => 'Notes',
             ])
             ->assertCreated()
-            ->assertJsonPath('memory.id', 'mem-1')
-            ->assertJsonPath('memory.status', 'processed')
-            ->assertJsonPath('memory.container_tag', 'user-'.$user->id);
-
-        $this->assertDatabaseHas('supermemory_ingestions', [
-            'user_id' => $user->id,
-            'source_type' => 'memory',
-            'source_name' => 'memory-entry',
-            'supermemory_id' => 'mem-1',
-            'supermemory_status' => 'processed',
-        ]);
+            ->assertJsonPath('dataset.name', 'Notes')
+            ->assertJsonPath('result.status', 'added')
+            ->assertJsonPath('cognify.triggered', true)
+            ->assertJsonPath('cognify.result.pipeline_run_id', 'run-1');
     }
 
-    public function test_store_documents_uploads_file_and_optionally_saves_summary_as_memory(): void
+    public function test_store_text_restores_expired_cognee_session_and_retries(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->create([
+            'cognee_token' => 'expired-token',
+            'cognee_password' => 'password123',
+        ]);
+        $token = $user->createToken('flutter')->plainTextToken;
+        $mock = $this->mockCogneeService();
+
+        $mock->expects($this->exactly(2))
+            ->method('createDataset')
+            ->with($this->logicalOr('expired-token', 'restored-token'), 'Notes')
+            ->willReturnCallback(function (string $token) {
+                if ($token === 'expired-token') {
+                    throw CogneeApiException::sessionExpired();
+                }
+
+                return ['id' => 'dataset-1', 'name' => 'Notes'];
+            });
+
+        $mock->expects($this->once())
+            ->method('addData')
+            ->with(
+                'restored-token',
+                'Hello Cognee',
+                'dataset-1',
+                'Notes',
+                [],
+                null,
+            )
+            ->willReturn(['status' => 'added']);
+
+        $mock->expects($this->once())
+            ->method('cognify')
+            ->with('restored-token', 'dataset-1', 'Notes', true, null, [])
+            ->willReturn(['pipeline_run_id' => 'run-1']);
+
+        $mock->expects($this->once())
+            ->method('restoreUserSession')
+            ->with($this->callback(fn (User $model) => $model->is($user)))
+            ->willReturn('restored-token');
+
+        $this->withHeader('Authorization', "Bearer $token")
+            ->postJson('/api/ingestion/text', [
+                'text' => 'Hello Cognee',
+                'dataset_name' => 'Notes',
+            ])
+            ->assertCreated()
+            ->assertJsonPath('dataset.name', 'Notes')
+            ->assertJsonPath('result.status', 'added')
+            ->assertJsonPath('cognify.triggered', true)
+            ->assertJsonPath('cognify.result.pipeline_run_id', 'run-1');
+    }
+
+    public function test_store_files_uploads_file_bytes_to_cognee(): void
+    {
+        $datasetId = '123e4567-e89b-12d3-a456-426614174000';
+        $user = User::factory()->create(['cognee_token' => 'cognee-token']);
         $token = $user->createToken('flutter')->plainTextToken;
         $file = UploadedFile::fake()->createWithContent('doc.txt', 'file-body');
-        $mock = $this->mockSupermemoryService();
+        $mock = $this->mockCogneeService();
+
+        $mock->expects($this->never())
+            ->method('createDataset');
 
         $mock->expects($this->once())
-            ->method('uploadFile')
+            ->method('addData')
             ->with(
-                $this->callback(fn (UploadedFile $uploadedFile) => $uploadedFile->getClientOriginalName() === 'doc.txt'),
-                'user-'.$user->id,
-                $this->callback(function (array $metadata) use ($user) {
-                    return $metadata['source'] === 'file'
-                        && $metadata['original_name'] === 'doc.txt'
-                        && $metadata['uploaded_by_user_id'] === $user->id;
-                }),
-                'custom-file',
-                'Project docs',
+                'cognee-token',
+                'file-body',
+                $datasetId,
+                null,
+                [],
+                'doc.txt',
             )
-            ->willReturn(['id' => 'doc-2', 'status' => 'queued']);
+            ->willReturn(['status' => 'added']);
 
         $mock->expects($this->once())
-            ->method('addMemory')
-            ->with(
-                'Short summary',
-                'user-'.$user->id,
-                $this->callback(fn (array $metadata) => ($metadata['source'] ?? null) === 'document_summary' && ($metadata['linked_document_id'] ?? null) === 'doc-2'),
-                'summary-1',
-                'Summary context',
-            )
-            ->willReturn(['id' => 'mem-2', 'status' => 'processed']);
+            ->method('cognify')
+            ->with('cognee-token', $datasetId, null, true, null, [])
+            ->willReturn(['pipeline_run_id' => 'run-2']);
 
         $this->withHeader('Authorization', "Bearer $token")
-            ->post('/api/documents', [
+            ->post('/api/ingestion/files', [
                 'files' => [$file],
-                'custom_id' => 'custom-file',
-                'entity_context' => 'Project docs',
-                'summary' => 'Short summary',
-                'summary_custom_id' => 'summary-1',
-                'summary_entity_context' => 'Summary context',
+                'dataset_id' => $datasetId,
             ])
             ->assertCreated()
-            ->assertJsonPath('documents.0.id', 'doc-2')
-            ->assertJsonPath('documents.0.name', 'doc.txt')
-            ->assertJsonPath('summary_memory.id', 'mem-2');
-
-        $this->assertDatabaseHas('supermemory_ingestions', [
-            'user_id' => $user->id,
-            'source_type' => 'document',
-            'source_name' => 'doc.txt',
-            'supermemory_id' => 'doc-2',
-            'supermemory_status' => 'queued',
-        ]);
-
-        $summary = SupermemoryIngestion::where('supermemory_id', 'mem-2')->first();
-        $this->assertNotNull($summary);
-        $this->assertSame('memory', $summary->source_type);
-        $this->assertSame('doc-2', $summary->linked_supermemory_id);
+            ->assertJsonPath('result.status', 'added')
+            ->assertJsonPath('cognify.triggered', true)
+            ->assertJsonPath('cognify.result.pipeline_run_id', 'run-2');
     }
 
-    public function test_store_documents_rejects_summary_for_multiple_files(): void
+    public function test_store_text_can_skip_cognify_when_requested(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->create(['cognee_token' => 'cognee-token']);
         $token = $user->createToken('flutter')->plainTextToken;
-        $first = UploadedFile::fake()->create('a.txt');
-        $second = UploadedFile::fake()->create('b.txt');
+        $mock = $this->mockCogneeService();
+
+        $mock->expects($this->once())
+            ->method('createDataset')
+            ->with('cognee-token', 'Notes')
+            ->willReturn(['id' => 'dataset-1', 'name' => 'Notes']);
+
+        $mock->expects($this->once())
+            ->method('addData')
+            ->with(
+                'cognee-token',
+                'Hello Cognee',
+                'dataset-1',
+                'Notes',
+                [],
+                null,
+            )
+            ->willReturn(['status' => 'added']);
+
+        $mock->expects($this->never())
+            ->method('cognify');
 
         $this->withHeader('Authorization', "Bearer $token")
-            ->post('/api/documents', [
-                'files' => [$first, $second],
-                'summary' => 'Short summary',
+            ->postJson('/api/ingestion/text', [
+                'text' => 'Hello Cognee',
+                'dataset_name' => 'Notes',
+                'run_cognify' => false,
             ])
-            ->assertStatus(422)
-            ->assertJsonValidationErrors(['summary']);
+            ->assertCreated()
+            ->assertJsonPath('cognify.triggered', false)
+            ->assertJsonPath('cognify.reason', 'disabled');
     }
 
-    public function test_store_memory_requires_text(): void
+    public function test_store_text_requires_dataset_selector(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->create(['cognee_token' => 'cognee-token']);
         $token = $user->createToken('flutter')->plainTextToken;
 
         $this->withHeader('Authorization', "Bearer $token")
-            ->postJson('/api/memories', [])
+            ->postJson('/api/ingestion/text', ['text' => 'Hello'])
             ->assertStatus(422)
-            ->assertJsonValidationErrors(['text']);
+            ->assertJsonValidationErrors(['dataset_id', 'dataset_name']);
     }
 }
