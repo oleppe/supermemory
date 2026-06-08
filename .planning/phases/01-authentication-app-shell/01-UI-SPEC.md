@@ -56,12 +56,12 @@ Exceptions:
 |------|------|--------|-------------|---------------|
 | Body | 16px | 400 (regular) | 1.5 | `text-body-1` |
 | Label | 14px | 400 (regular) | 1.5 | `text-body-2` |
-| Heading | 24px (h4) / 28px (h3) | 700 (bold) | 1.2 | `text-h4` / `text-h3` |
+| Heading | 24px (h4/h3) | 700 (bold) | 1.2 | `text-h4` / `text-h3` |
 | Display | 32px (h2) | 700 (bold) | 1.2 | `text-h2` |
 
-Additional weights used:
-- `font-weight-semibold` (600): User name in dropdown, app title in nav bar
-- `font-weight-bold` (700): Headings, page titles, CTA buttons (Vuetify default)
+Font weights used:
+- `font-weight-regular` (400): Body text, labels, secondary elements
+- `font-weight-bold` (700): Headings, page titles, CTA buttons, user name in dropdown, app title in nav bar (Vuetify default for buttons)
 
 **Source:** Vuetify typography scale. Existing usage in `login.vue` (`text-h4`, `text-body-1`) and `DefaultLayoutWithHorizontalNav.vue` (`text-xl`, `font-weight-bold`).
 
