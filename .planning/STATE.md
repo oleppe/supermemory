@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.9
 milestone_name: milestone
 status: executing
-stopped_at: Completed 01-01-PLAN.md
-last_updated: "2026-06-09T06:42:45.791Z"
+stopped_at: Completed 01-02-PLAN.md
+last_updated: "2026-06-09T06:49:00.740Z"
 last_activity: 2026-06-09 -- Phase 01 execution started
 progress:
   total_phases: 3
   completed_phases: 0
   total_plans: 3
-  completed_plans: 1
+  completed_plans: 2
   percent: 0
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-06-08)
 ## Current Position
 
 Phase: 01 (authentication-app-shell) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
 Last activity: 2026-06-09 -- Phase 01 execution started
 
@@ -53,6 +53,7 @@ Progress: [░░░░░░░░░░] 0%
 
 *Updated after each plan completion*
 | Phase 01 P01 | 13 min | 2 tasks | 4 files |
+| Phase 01 P02 | 2 min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -67,6 +68,9 @@ Recent decisions affecting current work:
 - Lazy-load heavy dependencies (PDF viewer ~500KB, markdown renderer)
 - [Phase 01]: Guarded session operations with hasSession() for Flutter PAT compatibility — API routes lack session middleware for non-SPA requests
 - [Phase 01]: Used Auth::attempt() for login to enable session creation — Replaces Hash::check() to automatically create session for SPA cookie auth
+- [Phase 01]: Lazy import pattern for useAuthStore in api.ts to avoid circular dependency — api.ts is imported by auth.ts, so auth.ts cannot be imported at top of api.ts
+- [Phase 01]: baseURL override to empty string for /sanctum/csrf-cookie call — CSRF endpoint is at /sanctum/csrf-cookie, not /api/sanctum/csrf-cookie
+- [Phase 01]: Router guard relies on mount-time App.vue init rather than calling fetchUser itself — App.vue initAuth runs before first navigation, populating auth store
 
 ### Pending Todos
 
@@ -88,6 +92,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-09T06:42:03.767Z
-Stopped at: Completed 01-01-PLAN.md
+Last session: 2026-06-09T06:49:00.735Z
+Stopped at: Completed 01-02-PLAN.md
 Resume file: None

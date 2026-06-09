@@ -11,7 +11,7 @@
 - [x] **AUTH-02**: User can register a new account via registration page
 - [x] **AUTH-03**: User session persists across browser refresh (token in cookie)
 - [x] **AUTH-04**: User can log out and be redirected to login page
-- [ ] **AUTH-05**: Unauthenticated users are redirected to login from protected pages
+- [x] **AUTH-05**: Unauthenticated users are redirected to login from protected pages
 
 ### File Management
 
@@ -82,7 +82,7 @@
 | AUTH-02 | Phase 1 | Complete |
 | AUTH-03 | Phase 1 | Complete |
 | AUTH-04 | Phase 1 | Complete |
-| AUTH-05 | Phase 1 | Pending |
+| AUTH-05 | Phase 1 | Complete |
 | FILE-01 | Phase 2 | Pending |
 | FILE-02 | Phase 2 | Pending |
 | FILE-03 | Phase 2 | Pending |
