@@ -11,6 +11,7 @@ interface User {
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<User | null>(null)
   const isLoading = ref(false)
+  const isInitialized = ref(false)
 
   const isAuthenticated = computed(() => user.value !== null)
 
@@ -65,10 +66,25 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  async function initAuth() {
+    try {
+      await $api('/sanctum/csrf-cookie', { method: 'GET', baseURL: '' })
+      await fetchUser()
+    }
+    catch {
+      // User will be redirected by router guard if not authenticated
+    }
+    finally {
+      isInitialized.value = true
+    }
+  }
+
   return {
     user,
     isLoading,
+    isInitialized,
     isAuthenticated,
+    initAuth,
     fetchUser,
     login,
     register,

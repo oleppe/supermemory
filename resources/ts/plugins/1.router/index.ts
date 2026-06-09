@@ -36,6 +36,18 @@ router.beforeEach(async (to) => {
   if (to.meta.public)
     return true
 
+  // Wait for auth initialization to complete before checking authentication
+  if (!authStore.isInitialized) {
+    await new Promise<void>((resolve) => {
+      const unwatch = watch(() => authStore.isInitialized, (initialized) => {
+        if (initialized) {
+          unwatch()
+          resolve()
+        }
+      })
+    })
+  }
+
   if (!authStore.isAuthenticated) {
     return {
       path: '/login',
