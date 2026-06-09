@@ -13,7 +13,7 @@ Build a web-based user panel for the existing Laravel 12 + Vue 3 + Vuetify 3 app
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Authentication & App Shell** - Wire existing Sanctum auth to Vue frontend with login, registration, session persistence, and route guards
+- [x] **Phase 1: Authentication & App Shell** - Wire existing Sanctum auth to Vue frontend with login, registration, session persistence, and route guards (completed 2026-06-09)
 - [ ] **Phase 2: File Management & Storage** - Drag-and-drop file upload with progress, document list/detail views, PDF preview, and local-first storage infrastructure
 - [ ] **Phase 3: AI Chat & Document Scanning** - Conversational document Q&A with markdown rendering and OCR scanning with async progress and structured results
 
@@ -32,7 +32,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   4. User can log out from any page and is redirected to the login screen
   5. Unauthenticated users visiting protected pages are redirected to login, then to the originally requested page after logging in
 
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans complete
 **Wave 1**
 
 - [x] 01-01-PLAN.md — Backend SPA auth: session-based login/register/logout + stateful middleware + tests
@@ -40,7 +40,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 01-03-PLAN.md — Auth UI: login/register page with tab toggle, welcome dashboard, user menu with logout
+- [x] 01-03-PLAN.md — Auth UI: login/register page with tab toggle, welcome dashboard, user menu with logout
 
 ### Phase 2: File Management & Storage
 
@@ -84,6 +84,6 @@ Phases execute in numeric order: 1 → 2 → 3
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Authentication & App Shell | 2/3 | In Progress|  |
+| 1. Authentication & App Shell | 3/3 | Complete   | 2026-06-09 |
 | 2. File Management & Storage | 0/TBD | Not started | - |
 | 3. AI Chat & Document Scanning | 0/TBD | Not started | - |
