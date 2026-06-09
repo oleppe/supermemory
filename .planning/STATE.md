@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.9
 milestone_name: milestone
 status: executing
-stopped_at: Phase 1 UI-SPEC approved
-last_updated: "2026-06-08T15:01:38.152Z"
-last_activity: 2026-06-08 — Roadmap created for v1.9 User Panel
+stopped_at: Completed 01-01-PLAN.md
+last_updated: "2026-06-09T06:42:45.791Z"
+last_activity: 2026-06-09 -- Phase 01 execution started
 progress:
   total_phases: 3
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_plans: 3
+  completed_plans: 1
   percent: 0
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-06-08)
 
 **Core value:** Users can upload documents and get instant AI-powered insights — extracted text, smart summaries, and the ability to ask questions about their files in natural language.
-**Current focus:** Roadmap created — ready for Phase 1 planning
+**Current focus:** Phase 01 — authentication-app-shell
 
 ## Current Position
 
-Phase: 1 of 3 (Authentication & App Shell)
-Plan: — of — in current phase
+Phase: 01 (authentication-app-shell) — EXECUTING
+Plan: 2 of 3
 Status: Ready to execute
-Last activity: 2026-06-08 — Roadmap created for v1.9 User Panel
+Last activity: 2026-06-09 -- Phase 01 execution started
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -52,6 +52,7 @@ Progress: [░░░░░░░░░░] 0%
 - Trend: N/A
 
 *Updated after each plan completion*
+| Phase 01 P01 | 13 min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -64,6 +65,8 @@ Recent decisions affecting current work:
 - Local-first storage with S3-ready design (relative paths + disk column)
 - Vue 3 + Vuetify 3 frontend on existing Vuexy template
 - Lazy-load heavy dependencies (PDF viewer ~500KB, markdown renderer)
+- [Phase 01]: Guarded session operations with hasSession() for Flutter PAT compatibility — API routes lack session middleware for non-SPA requests
+- [Phase 01]: Used Auth::attempt() for login to enable session creation — Replaces Hash::check() to automatically create session for SPA cookie auth
 
 ### Pending Todos
 
@@ -85,6 +88,6 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-06-08T13:46:57.585Z
-Stopped at: Phase 1 UI-SPEC approved
-Resume file: .planning/phases/01-authentication-app-shell/01-UI-SPEC.md
+Last session: 2026-06-09T06:42:03.767Z
+Stopped at: Completed 01-01-PLAN.md
+Resume file: None
