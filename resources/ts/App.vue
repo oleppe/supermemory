@@ -4,6 +4,8 @@ import ScrollToTop from '@core/components/ScrollToTop.vue'
 import initCore from '@core/initCore'
 import { initConfigStore, useConfigStore } from '@core/stores/config'
 import { hexToRgb } from '@core/utils/colorConverter'
+import { $api } from '@/utils/api'
+import { useAuthStore } from '@/stores/auth'
 
 const { global } = useTheme()
 
@@ -12,6 +14,20 @@ initCore()
 initConfigStore()
 
 const configStore = useConfigStore()
+
+const authStore = useAuthStore()
+
+async function initAuth() {
+  try {
+    await $api('/sanctum/csrf-cookie', { method: 'GET', baseURL: '' })
+    await authStore.fetchUser()
+  }
+  catch {
+    // User will be redirected by router guard if not authenticated
+  }
+}
+
+initAuth()
 </script>
 
 <template>
