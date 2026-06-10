@@ -1,14 +1,5 @@
 <script setup lang="ts">
-import { useAuthStore } from '@/stores/auth'
 import avatar1 from '@images/avatars/avatar-1.png'
-
-const authStore = useAuthStore()
-const router = useRouter()
-
-async function handleLogout() {
-  await authStore.logout()
-  router.push('/login')
-}
 </script>
 
 <template>
@@ -57,16 +48,70 @@ async function handleLogout() {
             </template>
 
             <VListItemTitle class="font-weight-semibold">
-              {{ authStore.user?.name || '' }}
+              John Doe
             </VListItemTitle>
-            <VListItemSubtitle>{{ authStore.user?.email || '' }}</VListItemSubtitle>
+            <VListItemSubtitle>Admin</VListItemSubtitle>
+          </VListItem>
+
+          <VDivider class="my-2" />
+
+          <!-- 👉 Profile -->
+          <VListItem link>
+            <template #prepend>
+              <VIcon
+                class="me-2"
+                icon="tabler-user"
+                size="22"
+              />
+            </template>
+
+            <VListItemTitle>Profile</VListItemTitle>
+          </VListItem>
+
+          <!-- 👉 Settings -->
+          <VListItem link>
+            <template #prepend>
+              <VIcon
+                class="me-2"
+                icon="tabler-settings"
+                size="22"
+              />
+            </template>
+
+            <VListItemTitle>Settings</VListItemTitle>
+          </VListItem>
+
+          <!-- 👉 Pricing -->
+          <VListItem link>
+            <template #prepend>
+              <VIcon
+                class="me-2"
+                icon="tabler-currency-dollar"
+                size="22"
+              />
+            </template>
+
+            <VListItemTitle>Pricing</VListItemTitle>
+          </VListItem>
+
+          <!-- 👉 FAQ -->
+          <VListItem link>
+            <template #prepend>
+              <VIcon
+                class="me-2"
+                icon="tabler-help"
+                size="22"
+              />
+            </template>
+
+            <VListItemTitle>FAQ</VListItemTitle>
           </VListItem>
 
           <!-- Divider -->
           <VDivider class="my-2" />
 
           <!-- 👉 Logout -->
-          <VListItem @click="handleLogout">
+          <VListItem to="/login">
             <template #prepend>
               <VIcon
                 class="me-2"

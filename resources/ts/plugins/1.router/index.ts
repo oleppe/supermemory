@@ -4,7 +4,6 @@ import type { App } from 'vue'
 import type { RouteRecordRaw } from 'vue-router/auto'
 
 import { createRouter, createWebHistory } from 'vue-router/auto'
-import { useAuthStore } from '@/stores/auth'
 
 function recursiveLayouts(route: RouteRecordRaw): RouteRecordRaw {
   if (route.children) {
@@ -28,32 +27,6 @@ const router = createRouter({
   extendRoutes: pages => [
     ...[...pages].map(route => recursiveLayouts(route)),
   ],
-})
-
-router.beforeEach(async (to) => {
-  const authStore = useAuthStore()
-
-  if (to.meta.public)
-    return true
-
-  // Wait for auth initialization to complete before checking authentication
-  if (!authStore.isInitialized) {
-    await new Promise<void>((resolve) => {
-      const unwatch = watch(() => authStore.isInitialized, (initialized) => {
-        if (initialized) {
-          unwatch()
-          resolve()
-        }
-      })
-    })
-  }
-
-  if (!authStore.isAuthenticated) {
-    return {
-      path: '/login',
-      query: { redirect: to.fullPath },
-    }
-  }
 })
 
 export { router }

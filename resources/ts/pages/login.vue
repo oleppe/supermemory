@@ -1,8 +1,14 @@
 <script setup lang="ts">
+import AuthProvider from '@/views/pages/authentication/AuthProvider.vue'
+import { useGenerateImageVariant } from '@core/composable/useGenerateImageVariant'
+import authV2LoginIllustrationBorderedDark from '@images/pages/auth-v2-login-illustration-bordered-dark.png'
+import authV2LoginIllustrationBorderedLight from '@images/pages/auth-v2-login-illustration-bordered-light.png'
+import authV2LoginIllustrationDark from '@images/pages/auth-v2-login-illustration-dark.png'
+import authV2LoginIllustrationLight from '@images/pages/auth-v2-login-illustration-light.png'
+import authV2MaskDark from '@images/pages/misc-mask-dark.png'
+import authV2MaskLight from '@images/pages/misc-mask-light.png'
 import { VNodeRenderer } from '@layouts/components/VNodeRenderer'
 import { themeConfig } from '@themeConfig'
-import { useAuthStore } from '@/stores/auth'
-import { emailValidator, requiredValidator } from '@core/utils/validators'
 
 definePage({
   meta: {
@@ -11,181 +17,167 @@ definePage({
   },
 })
 
-const activeTab = ref('login')
+const form = ref({
+  email: '',
+  password: '',
+  remember: false,
+})
+
 const isPasswordVisible = ref(false)
 
-const loginForm = ref({ email: '', password: '', remember: false })
-const registerForm = ref({ email: '', password: '' })
+const authThemeImg = useGenerateImageVariant(
+  authV2LoginIllustrationLight,
+  authV2LoginIllustrationDark,
+  authV2LoginIllustrationBorderedLight,
+  authV2LoginIllustrationBorderedDark,
+  true)
 
-const authStore = useAuthStore()
-const route = useRoute()
-const router = useRouter()
-
-// Password validation matches backend (min:3) — do NOT use passwordValidator from @core/utils/validators
-const minPasswordLength = (v: string) => !!v && v.length >= 3 || 'Password must be at least 3 characters'
-
-const loginFormRules = {
-  email: [requiredValidator, emailValidator],
-  password: [requiredValidator, minPasswordLength],
-}
-
-const registerFormRules = {
-  email: [requiredValidator, emailValidator],
-  password: [requiredValidator, minPasswordLength],
-}
-
-const loginError = ref('')
-const registerError = ref('')
-
-function navigateAfterAuth() {
-  const redirect = (route.query.redirect as string) || '/'
-  router.push(redirect)
-}
-
-async function handleLogin() {
-  loginError.value = ''
-  try {
-    await authStore.login(loginForm.value.email, loginForm.value.password)
-    navigateAfterAuth()
-  }
-  catch (e: any) {
-    loginError.value = e.response?._data?.message || 'Login failed'
-  }
-}
-
-async function handleRegister() {
-  registerError.value = ''
-  try {
-    await authStore.register(registerForm.value.email, registerForm.value.password)
-    navigateAfterAuth()
-  }
-  catch (e: any) {
-    registerError.value = e.response?._data?.message || 'Registration failed'
-  }
-}
+const authThemeMask = useGenerateImageVariant(authV2MaskLight, authV2MaskDark)
 </script>
 
 <template>
-  <div class="auth-wrapper d-flex align-center justify-center bg-surface" style="min-height: 100vh;">
-    <VCard max-width="450" class="pa-6">
-      <!-- Logo + Title -->
-      <div class="d-flex align-center justify-center gap-x-3 mb-4">
-        <VNodeRenderer :nodes="themeConfig.app.logo" />
-        <h1 class="text-h3 font-weight-bold">
-          {{ themeConfig.app.title }}
-        </h1>
+  <a href="javascript:void(0)">
+    <div class="auth-logo d-flex align-center gap-x-3">
+      <VNodeRenderer :nodes="themeConfig.app.logo" />
+      <h1 class="auth-title">
+        {{ themeConfig.app.title }}
+      </h1>
+    </div>
+  </a>
+
+  <VRow
+    no-gutters
+    class="auth-wrapper bg-surface"
+  >
+    <VCol
+      md="8"
+      class="d-none d-md-flex"
+    >
+      <div class="position-relative bg-background w-100 me-0">
+        <div
+          class="d-flex align-center justify-center w-100 h-100"
+          style="padding-inline: 6.25rem;"
+        >
+          <VImg
+            max-width="613"
+            :src="authThemeImg"
+            class="auth-illustration mt-16 mb-2"
+          />
+        </div>
+
+        <img
+          class="auth-footer-mask flip-in-rtl"
+          :src="authThemeMask"
+          alt="auth-footer-mask"
+          height="280"
+          width="100"
+        >
       </div>
+    </VCol>
 
-      <!-- Heading -->
-      <div class="text-center mb-4">
-        <h4 class="text-h4 mb-1">
-          Welcome to {{ themeConfig.app.title }}! 👋🏻
-        </h4>
-        <p class="text-body-1 mb-0">
-          Please sign-in to your account and start the adventure
-        </p>
-      </div>
+    <VCol
+      cols="12"
+      md="4"
+      class="auth-card-v2 d-flex align-center justify-center"
+    >
+      <VCard
+        flat
+        :max-width="500"
+        class="mt-12 mt-sm-0 pa-6"
+      >
+        <VCardText>
+          <h4 class="text-h4 mb-1">
+            Welcome to <span class="text-capitalize">{{ themeConfig.app.title }}</span>! 👋🏻
+          </h4>
+          <p class="mb-0">
+            Please sign-in to your account and start the adventure
+          </p>
+        </VCardText>
+        <VCardText>
+          <VForm @submit.prevent="() => {}">
+            <VRow>
+              <!-- email -->
+              <VCol cols="12">
+                <AppTextField
+                  v-model="form.email"
+                  autofocus
+                  label="Email or Username"
+                  type="email"
+                  placeholder="johndoe@email.com"
+                />
+              </VCol>
 
-      <!-- Tabs -->
-      <VTabs v-model="activeTab" grow>
-        <VTab value="login">Login</VTab>
-        <VTab value="register">Register</VTab>
-      </VTabs>
+              <!-- password -->
+              <VCol cols="12">
+                <AppTextField
+                  v-model="form.password"
+                  label="Password"
+                  placeholder="············"
+                  :type="isPasswordVisible ? 'text' : 'password'"
+                  autocomplete="password"
+                  :append-inner-icon="isPasswordVisible ? 'tabler-eye-off' : 'tabler-eye'"
+                  @click:append-inner="isPasswordVisible = !isPasswordVisible"
+                />
 
-      <VCardText>
-        <VWindow v-model="activeTab">
-          <!-- Login Tab -->
-          <VWindowItem value="login">
-            <VForm @submit.prevent="handleLogin">
-              <VRow>
-                <VCol cols="12">
-                  <AppTextField
-                    v-model="loginForm.email"
-                    autofocus
-                    label="Email"
-                    type="email"
-                    placeholder="johndoe@email.com"
-                    :rules="loginFormRules.email"
+                <div class="d-flex align-center flex-wrap justify-space-between my-6">
+                  <VCheckbox
+                    v-model="form.remember"
+                    label="Remember me"
                   />
-                </VCol>
+                  <a
+                    class="text-primary"
+                    href="javascript:void(0)"
+                  >
+                    Forgot Password?
+                  </a>
+                </div>
 
-                <VCol cols="12">
-                  <AppTextField
-                    v-model="loginForm.password"
-                    label="Password"
-                    placeholder="············"
-                    :type="isPasswordVisible ? 'text' : 'password'"
-                    autocomplete="password"
-                    :append-inner-icon="isPasswordVisible ? 'tabler-eye-off' : 'tabler-eye'"
-                    @click:append-inner="isPasswordVisible = !isPasswordVisible"
-                    :rules="loginFormRules.password"
-                  />
-                </VCol>
+                <VBtn
+                  block
+                  type="submit"
+                >
+                  Login
+                </VBtn>
+              </VCol>
 
-                <VCol cols="12">
-                  <div class="d-flex align-center flex-wrap justify-space-between">
-                    <VCheckbox v-model="loginForm.remember" label="Remember me" />
-                    <a class="text-primary" href="javascript:void(0)">Forgot Password?</a>
-                  </div>
-                </VCol>
+              <!-- create account -->
+              <VCol
+                cols="12"
+                class="text-body-1 text-center"
+              >
+                <span class="d-inline-block">
+                  New on our platform?
+                </span>
+                <a
+                  class="text-primary ms-1 d-inline-block text-body-1"
+                  href="javascript:void(0)"
+                >
+                  Create an account
+                </a>
+              </VCol>
 
-                <VCol v-if="loginError" cols="12">
-                  <VAlert type="error" variant="tonal">{{ loginError }}</VAlert>
-                </VCol>
+              <VCol
+                cols="12"
+                class="d-flex align-center"
+              >
+                <VDivider />
+                <span class="mx-4">or</span>
+                <VDivider />
+              </VCol>
 
-                <VCol cols="12">
-                  <VBtn block type="submit" :loading="authStore.isLoading" class="mt-4">
-                    Login
-                  </VBtn>
-                </VCol>
-              </VRow>
-            </VForm>
-          </VWindowItem>
-
-          <!-- Register Tab -->
-          <VWindowItem value="register">
-            <VForm @submit.prevent="handleRegister">
-              <VRow>
-                <VCol cols="12">
-                  <AppTextField
-                    v-model="registerForm.email"
-                    autofocus
-                    label="Email"
-                    type="email"
-                    placeholder="johndoe@email.com"
-                    :rules="registerFormRules.email"
-                  />
-                </VCol>
-
-                <VCol cols="12">
-                  <AppTextField
-                    v-model="registerForm.password"
-                    label="Password"
-                    placeholder="············"
-                    :type="isPasswordVisible ? 'text' : 'password'"
-                    autocomplete="password"
-                    :append-inner-icon="isPasswordVisible ? 'tabler-eye-off' : 'tabler-eye'"
-                    @click:append-inner="isPasswordVisible = !isPasswordVisible"
-                    :rules="registerFormRules.password"
-                  />
-                </VCol>
-
-                <VCol v-if="registerError" cols="12">
-                  <VAlert type="error" variant="tonal">{{ registerError }}</VAlert>
-                </VCol>
-
-                <VCol cols="12">
-                  <VBtn block type="submit" :loading="authStore.isLoading" class="mt-4">
-                    Register
-                  </VBtn>
-                </VCol>
-              </VRow>
-            </VForm>
-          </VWindowItem>
-        </VWindow>
-      </VCardText>
-    </VCard>
-  </div>
+              <!-- auth providers -->
+              <VCol
+                cols="12"
+                class="text-center"
+              >
+                <AuthProvider />
+              </VCol>
+            </VRow>
+          </VForm>
+        </VCardText>
+      </VCard>
+    </VCol>
+  </VRow>
 </template>
 
 <style lang="scss">

@@ -8,7 +8,6 @@ use App\Services\SupermemoryService;
 use App\Services\UsageLimitService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Laravel\Sanctum\PersonalAccessToken;
 
@@ -40,12 +39,6 @@ class AuthController extends Controller
             note: 'Assigned on registration.',
         );
 
-        Auth::login($user);
-
-        if ($request->hasSession()) {
-            $request->session()->regenerate();
-        }
-
         $token = $user->createToken('flutter')->plainTextToken;
 
         return response()->json([
@@ -61,16 +54,12 @@ class AuthController extends Controller
             'password' => ['required', 'string'],
         ]);
 
-        if (! Auth::attempt($validated)) {
+        $user = User::where('email', $validated['email'])->first();
+
+        if (! $user || ! Hash::check($validated['password'], $user->password)) {
             return response()->json([
                 'message' => 'Invalid credentials',
             ], 401);
-        }
-
-        $user = User::where('email', $validated['email'])->first();
-
-        if ($request->hasSession()) {
-            $request->session()->regenerate();
         }
 
         $token = $user->createToken('flutter')->plainTextToken;
@@ -119,13 +108,6 @@ class AuthController extends Controller
 
         if ($token instanceof PersonalAccessToken) {
             $token->delete();
-        }
-
-        Auth::guard('web')->logout();
-
-        if ($request->hasSession()) {
-            $request->session()->invalidate();
-            $request->session()->regenerateToken();
         }
 
         return response()->json(['message' => 'Logged out']);
