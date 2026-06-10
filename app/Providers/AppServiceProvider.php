@@ -4,7 +4,11 @@ namespace App\Providers;
 
 use App\Services\FirestoreSyncService;
 use App\Services\GeminiService;
+use App\Services\PdfPageCounter;
+use App\Services\StripeBillingService;
+use App\Services\SubscriptionService;
 use App\Services\SupermemoryService;
+use App\Services\UsageLimitService;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
@@ -19,7 +23,11 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->app->singleton(FirestoreSyncService::class);
         $this->app->singleton(GeminiService::class);
+        $this->app->singleton(PdfPageCounter::class);
+        $this->app->singleton(StripeBillingService::class);
+        $this->app->singleton(SubscriptionService::class);
         $this->app->singleton(SupermemoryService::class);
+        $this->app->singleton(UsageLimitService::class);
     }
 
     /**

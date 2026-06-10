@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\SearchRequest;
 use App\Services\GeminiService;
 use App\Services\SupermemoryService;
+use App\Services\UsageLimitService;
 use Illuminate\Http\JsonResponse;
 
 class SearchController extends Controller
@@ -12,6 +13,7 @@ class SearchController extends Controller
     public function __construct(
         private readonly GeminiService $geminiService,
         private readonly SupermemoryService $supermemoryService,
+        private readonly UsageLimitService $usageLimitService,
     ) {}
 
     public function searchMemories(SearchRequest $request): JsonResponse
@@ -19,6 +21,7 @@ class SearchController extends Controller
         $user = $this->authenticatedUser($request);
         $validated = $request->validated();
         $containerTag = $this->supermemoryContainerTag($user);
+        $this->usageLimitService->ensureAiQuestionAllowed($user);
         $result = $this->supermemoryService->searchMemories(
             $validated['query'],
             $containerTag,
@@ -36,6 +39,8 @@ class SearchController extends Controller
             fn (array $entry): array => $this->normalizeMemoryResult($entry),
             $entries,
         );
+
+        $this->usageLimitService->consumeAiQuestions($user);
 
         return response()->json([
             'results' => $results,
@@ -57,6 +62,7 @@ class SearchController extends Controller
         $user = $this->authenticatedUser($request);
         $validated = $request->validated();
         $containerTag = $this->supermemoryContainerTag($user);
+        $this->usageLimitService->ensureAiQuestionAllowed($user);
         $result = $this->supermemoryService->searchDocuments(
             $validated['query'],
             $containerTag,
@@ -70,6 +76,8 @@ class SearchController extends Controller
             fn (mixed $entry): bool => is_array($entry),
         ));
 
+        $fileReferences = $this->extractFileReferences($entries);
+
         $contextSegments = $this->extractContextSegments($entries);
         $hasContext = $contextSegments !== [];
         $conversationHistory = $validated['conversationHistory'] ?? [];
@@ -77,6 +85,8 @@ class SearchController extends Controller
         $answer = $hasContext
             ? $this->geminiService->generateAnswer($validated['query'], $contextSegments, $conversationHistory)
             : $this->fallbackNoContextAnswer();
+
+        $this->usageLimitService->consumeAiQuestions($user);
 
         return response()->json([
             'answer' => $answer,
@@ -91,6 +101,7 @@ class SearchController extends Controller
                 'model' => $this->geminiService->model(),
                 'context_items' => count($contextSegments),
                 'conversation_history_items' => count($conversationHistory),
+                'file_references' => $fileReferences,
                 'no_context' => ! $hasContext,
                 'timing' => $result['timing'] ?? null,
             ],
@@ -113,23 +124,25 @@ class SearchController extends Controller
 
         foreach ($entries as $entry) {
             $title = is_string($entry['title'] ?? null) ? trim($entry['title']) : null;
+            $sourceName = $this->extractOriginalName($entry);
+            $sourceLabel = $sourceName ?? $title;
 
             if (is_string($entry['memory'] ?? null) && trim($entry['memory']) !== '') {
                 $segments[] = '[Memory] '.trim($entry['memory']);
             }
 
             if (is_string($entry['summary'] ?? null) && trim($entry['summary']) !== '') {
-                $prefix = $title ? "[Document Summary: {$title}] " : '[Document Summary] ';
+                $prefix = $sourceLabel ? "[Document Summary: {$sourceLabel}] " : '[Document Summary] ';
                 $segments[] = $prefix.trim($entry['summary']);
             }
 
             if (is_string($entry['content'] ?? null) && trim($entry['content']) !== '') {
-                $prefix = $title ? "[Document Content: {$title}] " : '[Document Content] ';
+                $prefix = $sourceLabel ? "[Document Content: {$sourceLabel}] " : '[Document Content] ';
                 $segments[] = $prefix.trim($entry['content']);
             }
 
             if (is_string($entry['chunk'] ?? null) && trim($entry['chunk']) !== '') {
-                $prefix = $title ? "[Document Chunk: {$title}] " : '[Document Chunk] ';
+                $prefix = $sourceLabel ? "[Document Chunk: {$sourceLabel}] " : '[Document Chunk] ';
                 $segments[] = $prefix.trim($entry['chunk']);
             }
 
@@ -144,7 +157,7 @@ class SearchController extends Controller
                     continue;
                 }
 
-                $prefix = $title ? "[Document Chunk: {$title}] " : '[Document Chunk] ';
+                $prefix = $sourceLabel ? "[Document Chunk: {$sourceLabel}] " : '[Document Chunk] ';
                 $segments[] = $prefix.trim($chunkContent);
             }
         }
@@ -160,6 +173,47 @@ class SearchController extends Controller
         }
 
         return array_slice(array_values(array_unique($normalized)), 0, $maxSegments);
+    }
+
+    private function extractFileReferences(array $entries): array
+    {
+        $references = [];
+
+        foreach ($entries as $entry) {
+            if (! is_array($entry)) {
+                continue;
+            }
+
+            $originalName = $this->extractOriginalName($entry);
+
+            if ($originalName === null) {
+                continue;
+            }
+
+            $references[$originalName] = [
+                'original_name' => $originalName,
+                'link' => 'app-file://'.rawurlencode($originalName),
+            ];
+        }
+
+        return array_values($references);
+    }
+
+    private function extractOriginalName(array $entry): ?string
+    {
+        $metadata = $entry['metadata'] ?? null;
+
+        if (! is_array($metadata)) {
+            return null;
+        }
+
+        $originalName = $metadata['original_name'] ?? null;
+
+        if (! is_string($originalName) || trim($originalName) === '') {
+            return null;
+        }
+
+        return trim($originalName);
     }
 
     private function isMemoryResult(array $entry): bool

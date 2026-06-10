@@ -123,14 +123,17 @@ class FirestoreSyncService
         $path = config('services.firebase.service_account_path');
 
         if (is_string($path) && $path !== '') {
+            $relativePath = ltrim($path, '/\\');
+
             $candidates = array_values(array_unique([
-                $path,
+                base_path($relativePath),
                 base_path($path),
-                base_path(ltrim($path, '/\\')),
+                $path,
             ]));
 
             foreach ($candidates as $candidate) {
-                if (! is_file($candidate)) {
+                // Suppress warnings for disallowed absolute paths under open_basedir.
+                if (! @is_file($candidate)) {
                     continue;
                 }
 

@@ -33,4 +33,13 @@ class GeminiApiException extends Exception
             message: 'Gemini API is not configured',
         );
     }
+
+    public static function malformedResponse(string $message = 'Gemini API returned malformed JSON', mixed $detail = null): self
+    {
+        return new self(
+            statusCode: 502,
+            detail: $detail,
+            message: $message,
+        );
+    }
 }

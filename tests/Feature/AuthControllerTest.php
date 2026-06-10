@@ -21,12 +21,36 @@ class AuthControllerTest extends TestCase
 
         $response->assertStatus(201)
             ->assertJsonStructure([
-                'user' => ['id', 'email', 'name'],
+                'user' => ['id', 'email', 'name', 'preferred_language', 'is_admin'],
+                'subscription' => ['id', 'status', 'current_period_start', 'current_period_end', 'plan' => ['id', 'code', 'name']],
+                'usage' => ['files', 'ai_questions'],
                 'token',
             ]);
 
         $this->assertDatabaseHas('users', [
             'email' => 'test@example.com',
+        ]);
+
+        $this->assertDatabaseHas('subscriptions', [
+            'user_id' => User::query()->where('email', 'test@example.com')->value('id'),
+            'status' => 'active',
+        ]);
+    }
+
+    public function test_register_accepts_optional_preferred_language(): void
+    {
+        $response = $this->postJson('/api/auth/register', [
+            'email' => 'fr@example.com',
+            'password' => 'password123',
+            'preferred_language' => 'fr',
+        ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('user.preferred_language', 'fr');
+
+        $this->assertDatabaseHas('users', [
+            'email' => 'fr@example.com',
+            'preferred_language' => 'fr',
         ]);
     }
 
@@ -78,7 +102,9 @@ class AuthControllerTest extends TestCase
 
         $response->assertOk()
             ->assertJsonStructure([
-                'user' => ['id', 'email', 'name'],
+                'user' => ['id', 'email', 'name', 'preferred_language', 'is_admin'],
+                'subscription' => ['id', 'status', 'current_period_start', 'current_period_end', 'plan' => ['id', 'code', 'name']],
+                'usage' => ['files', 'ai_questions'],
                 'token',
             ]);
     }
@@ -116,10 +142,56 @@ class AuthControllerTest extends TestCase
 
         $response->assertOk()
             ->assertJsonStructure([
-                'user' => ['id', 'email', 'name'],
+                'user' => ['id', 'email', 'name', 'preferred_language', 'is_admin'],
+                'subscription' => ['id', 'status', 'current_period_start', 'current_period_end', 'plan' => ['id', 'code', 'name']],
+                'usage' => ['files', 'ai_questions'],
                 'supermemory' => ['configured', 'container_tag'],
             ]);
         $response->assertJsonPath('supermemory.container_tag', 'user-'.$user->id);
+        $response->assertJsonPath('subscription.plan.code', 'free');
+    }
+
+    public function test_update_profile_can_set_and_clear_preferred_language(): void
+    {
+        $user = User::factory()->create([
+            'preferred_language' => null,
+        ]);
+
+        $this->actingAs($user)
+            ->patchJson('/api/auth/profile', [
+                'preferred_language' => 'pt-BR',
+            ])
+            ->assertOk()
+            ->assertJsonPath('user.preferred_language', 'pt-BR');
+
+        $this->assertDatabaseHas('users', [
+            'id' => $user->id,
+            'preferred_language' => 'pt-BR',
+        ]);
+
+        $this->actingAs($user->fresh())
+            ->patchJson('/api/auth/profile', [
+                'preferred_language' => null,
+            ])
+            ->assertOk()
+            ->assertJsonPath('user.preferred_language', null);
+
+        $this->assertDatabaseHas('users', [
+            'id' => $user->id,
+            'preferred_language' => null,
+        ]);
+    }
+
+    public function test_update_profile_validates_preferred_language(): void
+    {
+        $user = User::factory()->create();
+
+        $this->actingAs($user)
+            ->patchJson('/api/auth/profile', [
+                'preferred_language' => 'French',
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['preferred_language']);
     }
 
     public function test_me_requires_authentication(): void

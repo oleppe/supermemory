@@ -42,7 +42,77 @@ Response:
   "user": {
     "id": 1,
     "email": "user@example.com",
-    "name": "user"
+    "name": "user",
+    "is_admin": false
+  },
+  "subscription": {
+    "id": 1,
+    "status": "active",
+    "current_period_start": "2026-04-07T00:00:00Z",
+    "current_period_end": "2026-05-07T00:00:00Z",
+    "cancelled_at": null,
+    "ends_at": null,
+    "assignment_note": "Assigned on registration.",
+    "plan": {
+      "id": 1,
+      "code": "free",
+      "name": "Free / Discovery",
+      "description": "Light usage to help users adopt the product.",
+      "price_cents": 0,
+      "currency": "USD",
+      "billing_interval_months": 1,
+      "limits": {
+        "monthly_files": 10,
+        "daily_files": null,
+        "monthly_questions": 25,
+        "daily_questions": null,
+        "max_pdf_pages": 10
+      },
+      "is_active": true,
+      "sort_order": 1
+    }
+  },
+  "usage": {
+    "files": {
+      "metric": "files",
+      "limit": 10,
+      "used": 0,
+      "remaining": 10,
+      "billing_cycle": {
+        "limit": 10,
+        "used": 0,
+        "remaining": 10,
+        "period_start": "2026-04-07T00:00:00Z",
+        "period_end": "2026-05-07T00:00:00Z"
+      },
+      "daily": {
+        "limit": null,
+        "used": 0,
+        "remaining": null,
+        "period_start": "2026-04-07T00:00:00Z",
+        "period_end": "2026-04-08T00:00:00Z"
+      }
+    },
+    "ai_questions": {
+      "metric": "ai_questions",
+      "limit": 25,
+      "used": 0,
+      "remaining": 25,
+      "billing_cycle": {
+        "limit": 25,
+        "used": 0,
+        "remaining": 25,
+        "period_start": "2026-04-07T00:00:00Z",
+        "period_end": "2026-05-07T00:00:00Z"
+      },
+      "daily": {
+        "limit": null,
+        "used": 0,
+        "remaining": null,
+        "period_start": "2026-04-07T00:00:00Z",
+        "period_end": "2026-04-08T00:00:00Z"
+      }
+    }
   },
   "token": "1|sanctum-token"
 }
@@ -68,7 +138,36 @@ Response:
   "user": {
     "id": 1,
     "email": "user@example.com",
-    "name": "user"
+    "name": "user",
+    "is_admin": false
+  },
+  "subscription": {
+    "id": 1,
+    "status": "active",
+    "current_period_start": "2026-04-07T00:00:00Z",
+    "current_period_end": "2026-05-07T00:00:00Z",
+    "cancelled_at": null,
+    "ends_at": null,
+    "assignment_note": "Assigned default free plan.",
+    "plan": {
+      "id": 1,
+      "code": "free",
+      "name": "Free / Discovery"
+    }
+  },
+  "usage": {
+    "files": {
+      "metric": "files",
+      "limit": 10,
+      "used": 0,
+      "remaining": 10
+    },
+    "ai_questions": {
+      "metric": "ai_questions",
+      "limit": 25,
+      "used": 0,
+      "remaining": 25
+    }
   },
   "token": "2|sanctum-token"
 }
@@ -85,11 +184,267 @@ Response:
   "user": {
     "id": 1,
     "email": "user@example.com",
-    "name": "user"
+    "name": "user",
+    "is_admin": false
+  },
+  "subscription": {
+    "id": 1,
+    "status": "active",
+    "current_period_start": "2026-04-07T00:00:00Z",
+    "current_period_end": "2026-05-07T00:00:00Z",
+    "cancelled_at": null,
+    "ends_at": null,
+    "assignment_note": "Assigned default free plan.",
+    "plan": {
+      "id": 1,
+      "code": "free",
+      "name": "Free / Discovery"
+    }
+  },
+  "usage": {
+    "files": {
+      "metric": "files",
+      "limit": 10,
+      "used": 0,
+      "remaining": 10
+    },
+    "ai_questions": {
+      "metric": "ai_questions",
+      "limit": 25,
+      "used": 0,
+      "remaining": 25
+    }
   },
   "supermemory": {
     "configured": true,
     "container_tag": "user-1"
+  }
+}
+```
+
+## Plans And Usage
+
+### List Available Plans
+
+`GET /api/plans`
+
+Response:
+
+```json
+{
+  "plans": [
+    {
+      "id": 1,
+      "code": "free",
+      "name": "Free / Discovery",
+      "description": "Light usage to help users adopt the product.",
+      "price_cents": 0,
+      "currency": "USD",
+      "billing_interval_months": 1,
+      "limits": {
+        "monthly_files": 10,
+        "daily_files": null,
+        "monthly_questions": 25,
+        "daily_questions": null,
+        "max_pdf_pages": 10
+      },
+      "is_active": true,
+      "sort_order": 1,
+      "is_current": true
+    },
+    {
+      "id": 2,
+      "code": "pro",
+      "name": "Pro / Unlimited-ish",
+      "description": "Paid plan for heavier usage with abuse protection.",
+      "price_cents": 999,
+      "currency": "USD",
+      "billing_interval_months": 1,
+      "limits": {
+        "monthly_files": 150,
+        "daily_files": null,
+        "monthly_questions": 400,
+        "daily_questions": 50,
+        "max_pdf_pages": 10
+      },
+      "is_active": true,
+      "sort_order": 2,
+      "is_current": false
+    },
+    {
+      "id": 3,
+      "code": "pro-annual",
+      "name": "Pro / Annual",
+      "description": "Annual Pro plan with the same usage limits billed at $100 per year.",
+      "price_cents": 10000,
+      "currency": "USD",
+      "billing_interval_months": 12,
+      "limits": {
+        "monthly_files": 150,
+        "daily_files": null,
+        "monthly_questions": 400,
+        "daily_questions": 50,
+        "max_pdf_pages": 10
+      },
+      "is_active": true,
+      "sort_order": 3,
+      "is_current": false
+    }
+  ]
+}
+```
+
+### Get Current Subscription
+
+`GET /api/subscription`
+
+Response body:
+
+- `subscription.plan`: the current plan details
+- `subscription.current_period_start`: start of the current billing cycle
+- `subscription.current_period_end`: end of the current billing cycle
+- `subscription.status`: current subscription status
+
+### Get Current Usage
+
+`GET /api/usage`
+
+Response body:
+
+- `usage.files`: uploaded document usage for the current user
+- `usage.ai_questions`: combined OCR + memory search + document Q&A usage
+- Each metric returns total billing-cycle usage plus an optional `daily` bucket when the plan defines a daily cap
+
+### Billing Overview
+
+`GET /api/billing/overview`
+
+Returns a single payload for the account billing screen.
+
+Response body:
+
+- `subscription`: current subscription with plan details
+- `usage`: current usage counters
+- `plans`: active plans with `is_current`, `is_paid`, and `can_checkout`
+- `billing.configured`: whether Stripe billing is configured on the backend
+- `billing.portal_available`: whether the user already has a Stripe customer profile
+- `billing.manages_current_subscription`: whether the active subscription is Stripe-managed
+
+### Create PaymentSheet For Paid Upgrade
+
+`POST /api/subscription/payment-sheet`
+
+Use this to start a paid upgrade with Stripe PaymentSheet for Flutter Android/iOS.
+
+Request:
+
+```json
+{
+  "plan_id": 2
+}
+```
+
+Response:
+
+```json
+{
+  "payment_sheet": {
+    "customer_id": "cus_test_123",
+    "ephemeral_key_secret": "ek_test_123",
+    "payment_intent_client_secret": "pi_123_secret_123",
+    "subscription_id": "sub_test_123"
+  }
+}
+```
+
+Flutter should use this payload to initialize Stripe PaymentSheet in-app.
+
+Notes:
+
+- Free plans do not use this endpoint.
+- Paid plans must be configured with a Stripe recurring `price` ID in the backend.
+- If the current subscription is already managed by Stripe, use the billing portal instead of creating a new subscription bootstrap.
+- Initialize Flutter Stripe with:
+  - `paymentIntentClientSecret = payment_sheet.payment_intent_client_secret`
+  - `customerId = payment_sheet.customer_id`
+  - `customerEphemeralKeySecret = payment_sheet.ephemeral_key_secret`
+- Configure the PaymentSheet `returnURL` in Flutter, for example `yourapp://stripe-redirect`.
+- Present PaymentSheet inside the app instead of opening a browser or webview.
+- The legacy endpoint `/api/subscription/checkout-session` currently points to the same mobile PaymentSheet flow for backward compatibility.
+
+### Open Billing Portal
+
+`POST /api/subscription/portal-session`
+
+Use this for customers who already have a Stripe-managed subscription and need Stripe's hosted management UI.
+
+Request:
+
+```json
+{
+  "return_url": "https://app.example.com/account"
+}
+```
+
+Response:
+
+```json
+{
+  "portal": {
+    "url": "https://billing.stripe.com/p/session/test"
+  }
+}
+```
+
+### Cancel Subscription
+
+`POST /api/subscription/cancel`
+
+Request:
+
+```json
+{
+  "immediately": false
+}
+```
+
+Behavior:
+
+- `immediately=false` cancels at period end
+- `immediately=true` requests immediate cancellation
+
+Response returns the updated `subscription` object.
+
+### Resume Subscription
+
+`POST /api/subscription/resume`
+
+Clears `cancel_at_period_end` for a Stripe-managed subscription.
+
+Response returns the updated `subscription` object.
+
+### Quota Exceeded Response
+
+Endpoints that consume plan usage can return `429 Too Many Requests` when a plan limit is exhausted.
+
+Example:
+
+```json
+{
+  "message": "You have reached your billing cycle ai questions limit.",
+  "detail": {
+    "code": "USAGE_LIMIT_EXCEEDED",
+    "metric": "ai_questions",
+    "period": "billing_cycle",
+    "limit": 25,
+    "used": 25,
+    "requested": 1,
+    "remaining": 0,
+    "reset_at": "2026-05-07T00:00:00Z",
+    "plan": {
+      "code": "free",
+      "name": "Free / Discovery"
+    }
   }
 }
 ```
@@ -209,9 +564,11 @@ Notes:
 - For multiple files, Laravel uploads each file separately to Supermemory.
 - If you send one `custom_id` with multiple files, Laravel appends `-1`, `-2`, and so on to keep them unique.
 - `summary` can only be used when uploading exactly one file.
+- PDF uploads are limited by plan. The current Free and Pro plans both reject PDFs above 10 pages.
 - When `summary` is present, Laravel uploads the file as a document first, then stores the summary as memory for faster memory-style retrieval later.
 - Supermemory processing is asynchronous, so use the returned document IDs for polling.
 - Laravel creates a user-related status record for every uploaded file and every created memory.
+- Every successfully uploaded document consumes the `files` quota for the current billing cycle.
 
 ### Status Tracking and Firestore Sync
 
@@ -318,6 +675,8 @@ Recommended mobile flow:
 4. Poll `/api/documents/{id}` until `status == "done"` or `status == "failed"`.
 5. Use memory search for summary-style recall and document search for source-grounded retrieval.
 
+For page-image OCR that previously called Gemini directly from Flutter, use the Laravel OCR endpoint described in `docs/flutter-gemini-ocr-api.md`.
+
 ## Search
 
 ### Search Memories
@@ -384,6 +743,7 @@ Response:
 Notes:
 
 - Use this endpoint for summaries, user notes, extracted takeaways, and other memory-style recall.
+- Every successful call consumes one `ai_questions` unit from the current plan.
 
 ### Search Documents
 
@@ -402,8 +762,11 @@ Response body:
 - `meta.model`: Gemini model used to produce the answer
 - `meta.context_items`: number of retrieval context segments sent to Gemini
 - `meta.conversation_history_items`: number of prior chat messages forwarded to Gemini
+- `meta.file_references`: unique file names from search results with app link tokens
 - `meta.no_context`: `true` when no relevant retrieval context was found and a fallback answer was returned
 - `meta.timing`: upstream timing when available
+
+Every successful call consumes one `ai_questions` unit from the current plan, even when the response falls back because no relevant context was found.
 
 Request:
 
@@ -442,6 +805,12 @@ Response:
     "model": "gemini-2.5-flash",
     "context_items": 4,
     "conversation_history_items": 2,
+    "file_references": [
+      {
+        "original_name": "receipt_1775657557025.pdf",
+        "link": "app-file://receipt_1775657557025.pdf"
+      }
+    ],
     "no_context": false,
     "timing": 87
   }
@@ -464,6 +833,7 @@ No-context response:
     "model": "gemini-2.5-flash",
     "context_items": 0,
     "conversation_history_items": 0,
+    "file_references": [],
     "no_context": true,
     "timing": 12
   }
@@ -474,6 +844,8 @@ Notes:
 
 - Flutter should read `answer` as the final response for the user.
 - This endpoint uses hybrid retrieval context (documents plus memories) and then returns only the LLM answer.
+- When a filename is present in context, Gemini is instructed to return markdown links in this format: `[receipt_1775657557025.pdf](app-file://receipt_1775657557025.pdf)`.
+- Flutter should parse `app-file://...` links, decode the filename, then map it to your real download/view URL.
 - Send the last few user and assistant messages in `conversationHistory` for follow-up questions.
 - Use only `user` and `assistant` roles in `conversationHistory`.
 - If no relevant context is found, Laravel returns a graceful fallback answer with `meta.no_context = true`.
@@ -693,21 +1065,145 @@ Future<Map<String, dynamic>> searchDocuments({
   int limit = 5,
   double? threshold,
   bool rerank = false,
+  List<Map<String, String>> conversationHistory = const [],
 }) async {
   final response = await client.dio.post('/search/documents', data: {
     'query': query,
     'limit': limit,
     'threshold': threshold,
     'rerank': rerank,
+    'conversationHistory': conversationHistory,
   });
 
   return response.data as Map<String, dynamic>;
 }
 ```
 
+### Frontend File Link Resolution (Flutter)
+
+Use this when rendering assistant messages from `/api/search/documents`.
+
+1. Read `answer` (markdown text) and `meta.file_references`.
+2. Find markdown links where URL starts with `app-file://`.
+3. Decode the filename from that URL.
+4. Resolve that filename to your real backend file URL (or route) and replace the temporary URL before rendering.
+
+```dart
+final appFileLinkPattern = RegExp(r'\[([^\]]+)\]\((app-file://[^)]+)\)');
+
+String resolveAppFileLinks({
+  required String markdown,
+  required List<dynamic> fileReferences,
+  required String Function(String originalName) buildFileUrl,
+}) {
+  final available = <String>{
+    for (final item in fileReferences)
+      if (item is Map<String, dynamic> && item['original_name'] is String)
+        item['original_name'] as String,
+  };
+
+  return markdown.replaceAllMapped(appFileLinkPattern, (match) {
+    final label = match.group(1)!;
+    final appUrl = match.group(2)!;
+    final encodedName = appUrl.replaceFirst('app-file://', '');
+    final originalName = Uri.decodeComponent(encodedName);
+
+    if (!available.contains(originalName)) {
+      return label;
+    }
+
+    final resolvedUrl = buildFileUrl(originalName);
+
+    return '[$label]($resolvedUrl)';
+  });
+}
+```
+
+Example usage after API call:
+
+```dart
+final data = await searchDocuments(query: 'show receipt total');
+final answer = (data['answer'] ?? '') as String;
+final meta = (data['meta'] ?? <String, dynamic>{}) as Map<String, dynamic>;
+final fileReferences = (meta['file_references'] ?? const <dynamic>[]) as List<dynamic>;
+
+final hydratedMarkdown = resolveAppFileLinks(
+  markdown: answer,
+  fileReferences: fileReferences,
+  buildFileUrl: (name) => 'https://api.your-domain.com/api/documents/by-name/${Uri.encodeComponent(name)}',
+);
+```
+
 ## Error Handling
 
 Validation errors still use Laravel `422` responses.
+
+## Admin Billing APIs
+
+These endpoints require an authenticated admin user.
+
+### List Plans For Admin
+
+`GET /api/admin/plans`
+
+Query params:
+
+- `per_page`
+- `active_only`
+
+Each plan includes:
+
+- `stripe_price_id`
+- `active_subscriptions_count`
+- `checkout_ready`
+
+### Create Or Update Plans
+
+- `POST /api/admin/plans`
+- `PATCH /api/admin/plans/{plan}`
+
+Admins can manage plan pricing, limits, active state, ordering, and the Stripe recurring `stripe_price_id` used for checkout.
+
+### List Subscriptions For Admin
+
+`GET /api/admin/subscriptions`
+
+Query params:
+
+- `status`
+- `plan_id`
+- `user_id`
+- `search`
+- `per_page`
+
+Each item includes:
+
+- subscription details
+- plan details
+- user summary
+- Stripe IDs when present
+
+### Review A User's Subscription History
+
+`GET /api/admin/users/{user}/subscription`
+
+Returns:
+
+- `user`
+- `current_subscription`
+- recent `subscriptions`
+
+### Manual Admin Assignment
+
+`PUT /api/admin/users/{user}/subscription`
+
+This still works for manual overrides and internal account management even with Stripe enabled.
+
+### Stripe Webhook
+
+`POST /api/stripe/webhook`
+
+Stripe should send subscription lifecycle events here. The backend verifies the Stripe signature and syncs subscription state into the local `subscriptions` table.
 
 Upstream Supermemory errors use this normalized shape:
 

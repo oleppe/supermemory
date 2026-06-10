@@ -3,22 +3,23 @@ status: testing
 phase: 01-authentication-app-shell
 source: [01-VERIFICATION.md]
 started: 2026-06-09T07:30:00Z
-updated: 2026-06-09T07:30:00Z
+updated: 2026-06-09T07:40:00Z
 ---
 
 ## Current Test
 
-number: 1
-name: Login Page Visual Layout
+number: 2
+name: Login Flow
 expected: |
-  Centered card with VTabs showing Login and Register tabs, logo, and heading text
+  After login, user is redirected to / (dashboard) showing welcome message
 awaiting: user response
 
 ## Tests
 
 ### 1. Login Page Visual Layout
 expected: Centered card with VTabs showing Login and Register tabs, logo, and heading text "Welcome to {AppName}!"
-result: [pending]
+result: pass
+note: "Login page is at /admin/login (not /login) — app base URL is /admin/"
 
 ### 2. Login Flow
 expected: After login, user is redirected to / (dashboard) showing welcome message
@@ -47,10 +48,16 @@ result: [pending]
 ## Summary
 
 total: 7
-passed: 0
+passed: 1
 issues: 0
-pending: 7
+pending: 6
 skipped: 0
 blocked: 0
 
 ## Gaps
+
+### Resolved Issues
+- **Session lost on refresh (CR-01)**: Fixed in commit 24054d8
+  - Added `isInitialized` flag to auth store
+  - Router guard now awaits auth initialization before checking authentication
+  - Moved initAuth logic from App.vue to auth store

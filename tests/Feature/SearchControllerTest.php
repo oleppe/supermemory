@@ -3,6 +3,8 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Models\UsageCounter;
+use App\Services\SubscriptionService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Concerns\MocksGeminiService;
 use Tests\Concerns\MocksSupermemoryService;
@@ -46,6 +48,13 @@ class SearchControllerTest extends TestCase
             ->assertJsonPath('meta.search_mode', 'memories')
             ->assertJsonPath('meta.upstream_search_mode', 'hybrid')
             ->assertJsonPath('meta.total', 1);
+
+        $this->assertDatabaseHas('usage_counters', [
+            'user_id' => $user->id,
+            'metric' => 'ai_questions',
+            'period' => 'billing_cycle',
+            'used' => 1,
+        ]);
     }
 
     public function test_search_documents_validates_threshold_range(): void
@@ -80,7 +89,10 @@ class SearchControllerTest extends TestCase
                         'type' => 'pdf',
                         'content' => 'Renewal clause',
                         'score' => 0.88,
-                        'metadata' => ['source' => 'file'],
+                        'metadata' => [
+                            'source' => 'file',
+                            'original_name' => 'receipt_1775657557025.pdf',
+                        ],
                         'chunks' => [],
                     ],
                     [
@@ -100,6 +112,7 @@ class SearchControllerTest extends TestCase
                     $joined = implode(' ', $segments);
 
                     return str_contains($joined, 'Renewal clause')
+                        && str_contains($joined, 'receipt_1775657557025.pdf')
                         && str_contains($joined, 'A related note from memory');
                 }),
                 [
@@ -135,6 +148,8 @@ class SearchControllerTest extends TestCase
             ->assertJsonPath('meta.model', 'gemini-2.5-flash')
             ->assertJsonPath('meta.context_items', 2)
             ->assertJsonPath('meta.conversation_history_items', 2)
+            ->assertJsonPath('meta.file_references.0.original_name', 'receipt_1775657557025.pdf')
+            ->assertJsonPath('meta.file_references.0.link', 'app-file://receipt_1775657557025.pdf')
             ->assertJsonPath('meta.no_context', false)
             ->assertJsonMissingPath('results');
     }
@@ -188,6 +203,36 @@ class SearchControllerTest extends TestCase
             ->assertJsonPath('meta.no_context', true)
             ->assertJsonPath('meta.context_items', 0)
             ->assertJsonPath('meta.conversation_history_items', 0)
+            ->assertJsonPath('meta.file_references', [])
             ->assertJsonMissingPath('results');
+    }
+
+    public function test_search_memories_rejects_when_monthly_ai_limit_is_exhausted(): void
+    {
+        $user = User::factory()->create();
+        $subscription = app(SubscriptionService::class)->resolveActiveSubscription($user);
+        $token = $user->createToken('flutter')->plainTextToken;
+
+        UsageCounter::query()->create([
+            'user_id' => $user->id,
+            'metric' => 'ai_questions',
+            'period' => 'billing_cycle',
+            'period_start' => $subscription->current_period_start,
+            'period_end' => $subscription->current_period_end,
+            'used' => 25,
+        ]);
+
+        $supermemory = $this->mockSupermemoryService();
+        $supermemory->expects($this->never())
+            ->method('searchMemories');
+
+        $this->withHeader('Authorization', "Bearer $token")
+            ->postJson('/api/search/memories', [
+                'query' => 'What is this?',
+            ])
+            ->assertStatus(429)
+            ->assertJsonPath('detail.metric', 'ai_questions')
+            ->assertJsonPath('detail.period', 'billing_cycle')
+            ->assertJsonPath('detail.limit', 25);
     }
 }

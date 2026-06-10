@@ -1,21 +1,28 @@
-import { fileURLToPath } from 'node:url'
-import laravel from 'laravel-vite-plugin'
 import vue from '@vitejs/plugin-vue'
 import vueJsx from '@vitejs/plugin-vue-jsx'
+import laravel from 'laravel-vite-plugin'
+import { fileURLToPath } from 'node:url'
 import AutoImport from 'unplugin-auto-import/vite'
 import Components from 'unplugin-vue-components/vite'
 import { VueRouterAutoImports, getPascalCaseRouteName } from 'unplugin-vue-router'
 import VueRouter from 'unplugin-vue-router/vite'
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import MetaLayouts from 'vite-plugin-vue-meta-layouts'
 import vuetify from 'vite-plugin-vuetify'
 import svgLoader from 'vite-svg-loader'
 
 // https://vitejs.dev/config/
-export default defineConfig({
-  plugins: [// Docs: https://github.com/posva/unplugin-vue-router
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '')
+  const devServerProtocol = env.VITE_DEV_SERVER_HTTPS === 'true' ? 'https' : 'http'
+  const devServerHost = env.VITE_DEV_SERVER_HOST || '127.0.0.1'
+  const devServerPort = Number(env.VITE_DEV_SERVER_PORT || 5173)
+  const devServerOrigin = env.VITE_DEV_SERVER_URL || `${devServerProtocol}://${devServerHost}:${devServerPort}`
+
+  return {
+    plugins: [// Docs: https://github.com/posva/unplugin-vue-router
   // ℹ️ This plugin should be placed before vue plugin
-    VueRouter({
+      VueRouter({
       getRouteName: routeNode => {
       // Convert pascal case to kebab case
         return getPascalCaseRouteName(routeNode)
@@ -25,7 +32,7 @@ export default defineConfig({
 
       routesFolder: 'resources/ts/pages',
     }),
-    vue({
+      vue({
       template: {
         compilerOptions: {
           isCustomElement: tag => tag === 'swiper-container' || tag === 'swiper-slide',
@@ -37,21 +44,21 @@ export default defineConfig({
         },
       },
     }),
-    laravel({
-      input: ['resources/ts/main.ts'],
+      laravel({
+      input: ['resources/ts/main.ts', 'resources/ts/landing.ts'],
       refresh: true,
     }),
-    vueJsx(), // Docs: https://github.com/vuetifyjs/vuetify-loader/tree/master/packages/vite-plugin
-    vuetify({
+      vueJsx(), // Docs: https://github.com/vuetifyjs/vuetify-loader/tree/master/packages/vite-plugin
+      vuetify({
       styles: {
         configFile: 'resources/styles/variables/_vuetify.scss',
       },
     }), // Docs: https://github.com/dishait/vite-plugin-vue-meta-layouts?tab=readme-ov-file
-    MetaLayouts({
+      MetaLayouts({
       target: './resources/ts/layouts',
       defaultLayout: 'default',
     }), // Docs: https://github.com/antfu/unplugin-vue-components#unplugin-vue-components
-    Components({
+      Components({
       dirs: ['resources/ts/@core/components', 'resources/ts/views/demos', 'resources/ts/components'],
       dts: true,
       resolvers: [
@@ -62,7 +69,7 @@ export default defineConfig({
         },
       ],
     }), // Docs: https://github.com/antfu/unplugin-auto-import#unplugin-auto-import
-    AutoImport({
+      AutoImport({
       imports: ['vue', VueRouterAutoImports, '@vueuse/core', '@vueuse/math', 'vue-i18n', 'pinia'],
       dirs: [
         './resources/ts/@core/utils',
@@ -76,30 +83,43 @@ export default defineConfig({
       // ℹ️ Disabled to avoid confusion & accidental usage
       ignore: ['useCookies', 'useStorage'],
     }),
-    svgLoader(),
-  ],
-  define: { 'process.env': {} },
-  resolve: {
-    alias: {
-      '@core-scss': fileURLToPath(new URL('./resources/styles/@core', import.meta.url)),
-      '@': fileURLToPath(new URL('./resources/ts', import.meta.url)),
-      '@themeConfig': fileURLToPath(new URL('./themeConfig.ts', import.meta.url)),
-      '@core': fileURLToPath(new URL('./resources/ts/@core', import.meta.url)),
-      '@layouts': fileURLToPath(new URL('./resources/ts/@layouts', import.meta.url)),
-      '@images': fileURLToPath(new URL('./resources/images/', import.meta.url)),
-      '@styles': fileURLToPath(new URL('./resources/styles/', import.meta.url)),
-      '@configured-variables': fileURLToPath(new URL('./resources/styles/variables/_template.scss', import.meta.url)),
-      '@db': fileURLToPath(new URL('./resources/ts/plugins/fake-api/handlers/', import.meta.url)),
-      '@api-utils': fileURLToPath(new URL('./resources/ts/plugins/fake-api/utils/', import.meta.url)),
-    },
-  },
-  build: {
-    chunkSizeWarningLimit: 5000,
-  },
-  optimizeDeps: {
-    exclude: ['vuetify'],
-    entries: [
-      './resources/ts/**/*.vue',
+      svgLoader(),
     ],
-  },
+    server: {
+      host: env.VITE_DEV_SERVER_BIND || '0.0.0.0',
+      port: devServerPort,
+      strictPort: true,
+      cors: true,
+      origin: devServerOrigin,
+      hmr: {
+        host: devServerHost,
+        port: devServerPort,
+        protocol: devServerProtocol === 'https' ? 'wss' : 'ws',
+      },
+    },
+    define: { 'process.env': {} },
+    resolve: {
+      alias: {
+        '@core-scss': fileURLToPath(new URL('./resources/styles/@core', import.meta.url)),
+        '@': fileURLToPath(new URL('./resources/ts', import.meta.url)),
+        '@themeConfig': fileURLToPath(new URL('./themeConfig.ts', import.meta.url)),
+        '@core': fileURLToPath(new URL('./resources/ts/@core', import.meta.url)),
+        '@layouts': fileURLToPath(new URL('./resources/ts/@layouts', import.meta.url)),
+        '@images': fileURLToPath(new URL('./resources/images/', import.meta.url)),
+        '@styles': fileURLToPath(new URL('./resources/styles/', import.meta.url)),
+        '@configured-variables': fileURLToPath(new URL('./resources/styles/variables/_template.scss', import.meta.url)),
+        '@db': fileURLToPath(new URL('./resources/ts/plugins/fake-api/handlers/', import.meta.url)),
+        '@api-utils': fileURLToPath(new URL('./resources/ts/plugins/fake-api/utils/', import.meta.url)),
+      },
+    },
+    build: {
+      chunkSizeWarningLimit: 5000,
+    },
+    optimizeDeps: {
+      exclude: ['vuetify'],
+      entries: [
+        './resources/ts/**/*.vue',
+      ],
+    },
+  }
 })

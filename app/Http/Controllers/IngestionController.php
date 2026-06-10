@@ -6,6 +6,7 @@ use App\Http\Requests\AddFilesRequest;
 use App\Http\Requests\AddTextRequest;
 use App\Models\SupermemoryIngestion;
 use App\Services\FirestoreSyncService;
+use App\Services\UsageLimitService;
 use App\Services\SupermemoryService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\UploadedFile;
@@ -15,6 +16,7 @@ class IngestionController extends Controller
     public function __construct(
         private readonly FirestoreSyncService $firestoreSyncService,
         private readonly SupermemoryService $supermemoryService,
+        private readonly UsageLimitService $usageLimitService,
     ) {}
 
     public function storeMemory(AddTextRequest $request): JsonResponse
@@ -68,6 +70,8 @@ class IngestionController extends Controller
         $containerTag = $this->supermemoryContainerTag($user);
         $documents = [];
         $files = $request->file('files');
+
+        $this->usageLimitService->ensureFileUploadsAllowed($user, $files);
 
         if (($validated['summary'] ?? null) !== null && count($files) !== 1) {
             return response()->json([
@@ -127,6 +131,8 @@ class IngestionController extends Controller
             if ($record) {
                 $this->firestoreSyncService->upsertIngestion($record);
             }
+
+            $this->usageLimitService->consumeFileUploads($user);
         }
 
         $summaryMemory = null;

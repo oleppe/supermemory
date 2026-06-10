@@ -51,4 +51,22 @@ return [
         'max_output_tokens' => env('GEMINI_MAX_OUTPUT_TOKENS', 1024),
     ],
 
+    'stripe' => [
+        'secret_key' => env('STRIPE_SECRET_KEY'),
+        'publishable_key' => env('STRIPE_PUBLISHABLE_KEY'),
+        'webhook_secret' => env('STRIPE_WEBHOOK_SECRET'),
+        'ephemeral_key_api_version' => env('STRIPE_EPHEMERAL_KEY_API_VERSION', '2024-11-20.acacia'),
+        'billing_portal_return_url' => env('STRIPE_BILLING_PORTAL_RETURN_URL'),
+    ],
+
+    'landing' => [
+        'recipient' => env('LANDING_DEMO_RECIPIENT', env('MAIL_FROM_ADDRESS')),
+        'recipient_name' => env('LANDING_DEMO_RECIPIENT_NAME', env('MAIL_FROM_NAME', 'MemoDoc Sales')),
+    ],
+
+    'contact' => [
+        'recipient' => env('CONTACT_FORM_RECIPIENT', env('LANDING_DEMO_RECIPIENT', env('MAIL_FROM_ADDRESS'))),
+        'recipient_name' => env('CONTACT_FORM_RECIPIENT_NAME', env('MAIL_FROM_NAME', 'MemoDoc Support')),
+    ],
+
 ];

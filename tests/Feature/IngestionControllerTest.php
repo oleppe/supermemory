@@ -4,6 +4,9 @@ namespace Tests\Feature;
 
 use App\Models\SupermemoryIngestion;
 use App\Models\User;
+use App\Models\UsageCounter;
+use App\Services\PdfPageCounter;
+use App\Services\SubscriptionService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Tests\Concerns\MocksSupermemoryService;
@@ -110,6 +113,13 @@ class IngestionControllerTest extends TestCase
         $this->assertNotNull($summary);
         $this->assertSame('memory', $summary->source_type);
         $this->assertSame('doc-2', $summary->linked_supermemory_id);
+
+        $this->assertDatabaseHas('usage_counters', [
+            'user_id' => $user->id,
+            'metric' => 'files',
+            'period' => 'billing_cycle',
+            'used' => 1,
+        ]);
     }
 
     public function test_store_documents_rejects_summary_for_multiple_files(): void
@@ -137,5 +147,56 @@ class IngestionControllerTest extends TestCase
             ->postJson('/api/memories', [])
             ->assertStatus(422)
             ->assertJsonValidationErrors(['text']);
+    }
+
+    public function test_store_documents_rejects_when_monthly_file_limit_is_exhausted(): void
+    {
+        $user = User::factory()->create();
+        $subscription = app(SubscriptionService::class)->resolveActiveSubscription($user);
+        $token = $user->createToken('flutter')->plainTextToken;
+
+        UsageCounter::query()->create([
+            'user_id' => $user->id,
+            'metric' => 'files',
+            'period' => 'billing_cycle',
+            'period_start' => $subscription->current_period_start,
+            'period_end' => $subscription->current_period_end,
+            'used' => 10,
+        ]);
+
+        $mock = $this->mockSupermemoryService();
+        $mock->expects($this->never())
+            ->method('uploadFile');
+
+        $this->withHeader('Authorization', "Bearer $token")
+            ->post('/api/documents', [
+                'files' => [UploadedFile::fake()->create('doc.txt')],
+            ])
+            ->assertStatus(429)
+            ->assertJsonPath('detail.metric', 'files')
+            ->assertJsonPath('detail.period', 'billing_cycle');
+    }
+
+    public function test_store_documents_rejects_pdf_above_plan_page_limit(): void
+    {
+        $user = User::factory()->create();
+        $token = $user->createToken('flutter')->plainTextToken;
+        $pdfCounter = $this->createMock(PdfPageCounter::class);
+        $pdfCounter->expects($this->once())
+            ->method('countPages')
+            ->willReturn(11);
+        $this->app->instance(PdfPageCounter::class, $pdfCounter);
+
+        $mock = $this->mockSupermemoryService();
+        $mock->expects($this->never())
+            ->method('uploadFile');
+
+        $this->withHeader('Authorization', "Bearer $token")
+            ->withHeader('Accept', 'application/json')
+            ->post('/api/documents', [
+                'files' => [UploadedFile::fake()->create('contract.pdf', 20, 'application/pdf')],
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['files.0']);
     }
 }
